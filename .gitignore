@@ -1,0 +1,7 @@
+*~
+brains/*
+*.csv
+saved_stats/*
+archive/*
+build/*
+.Rhistory

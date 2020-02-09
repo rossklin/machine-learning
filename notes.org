@@ -1,0 +1,8 @@
+* ideas
+** tree evaluator
+*** store derivative of output with respect to each sub-tree result in each iteration
+    Sub-trees with high variance or just high derivatives should be
+    more relevant, now you can prefer trimming less relevant sub-trees and
+    use more relevant sub-trees in mating.
+** evolution algorithm
+*** avoid keeping a large share of agents from the same "family"
