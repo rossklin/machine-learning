@@ -2,6 +2,8 @@
 
 class choice {
  public:
+  float value_buf;
+
   virtual bool validate() = 0;
   virtual int vector_dim() = 0;
 };

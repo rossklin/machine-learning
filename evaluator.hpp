@@ -24,10 +24,7 @@ class evaluator {
   virtual void initialize(input_sampler sampler, int cdim) = 0;
   virtual std::string status_report() = 0;
   virtual ptr clone() = 0;
-  virtual double complexity_penalty();
-
-  vec get_choice(const vec &input);
-  vec get_state(const vec &input);
+  virtual double complexity_penalty() = 0;
 };
 
 class rbf_evaluator : public evaluator {

@@ -24,13 +24,6 @@ class pod_game : public game, public std::enable_shared_from_this<pod_game> {
   hm<int, double> ttable();
   point get_checkpoint(int idx);
 
-  static constexpr double width = 16000;
-  static constexpr double height = 9000;
-  static constexpr double checkpoint_radius = 600;
-  static constexpr double pod_radius = 400;
-  static constexpr double angular_speed = 0.314;
-  static constexpr double friction = 0.85;
-  static constexpr double pod_mass = 1;
   int game_id;
   bool did_finish;
   int run_laps;
@@ -40,6 +33,14 @@ class pod_game : public game, public std::enable_shared_from_this<pod_game> {
   hm<int, pod_agent_ptr> get_typed_agents();
 
  public:
+  static constexpr double width = 16000;
+  static constexpr double height = 9000;
+  static constexpr double checkpoint_radius = 600;
+  static constexpr double pod_radius = 400;
+  static constexpr double angular_speed = 0.314;
+  static constexpr double friction = 0.85;
+  static constexpr double pod_mass = 1;
+
   pod_game(int teams, int ppt, int tree_depth);
 
   // static agent_ptr simple_pod_agent();

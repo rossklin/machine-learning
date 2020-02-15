@@ -1,6 +1,6 @@
 CC=g++
 CPPFLAGS=--std=c++17 -O3 -fopenmp
-SOURCES=agent.cpp	arena.cpp	game.cpp	pod_game.cpp	utility.cpp pure_train.cpp
+SOURCES=agent.cpp	arena.cpp	game.cpp	pod_game.cpp pod_agent.cpp	utility.cpp pure_train.cpp choice.cpp
 BIN = pure_train
 BUILD_DIR=./build
 OBJ = $(SOURCES:%.cpp=$(BUILD_DIR)/%.o)

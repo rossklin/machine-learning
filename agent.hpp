@@ -44,6 +44,7 @@ class agent : public std::enable_shared_from_this<agent> {
 };
 
 class standard_agent : public agent {
+ protected:
   evaluator_ptr eval;
   choice_selector_ptr csel;
 

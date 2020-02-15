@@ -12,6 +12,9 @@
 
 using namespace std;
 
+int pod_choice::vector_dim() { return 4; }
+bool pod_choice::validate() { return true; }
+
 pod_agent_ptr simple_pod_agent(evaluator_ptr e) {
   choice_selector_ptr c(new choice_selector(0));
   pod_agent_ptr a(new pod_agent(e, c));
@@ -97,8 +100,6 @@ record_table pod_game::increment() {
     shared_ptr<pod_choice> c = static_pointer_cast<pod_choice>(p->select_choice(self_ref));
     res[pid].input = vectorize_choice(c, pid);
     res[pid].output = p->evaluate_choice(res[x.first].input);
-
-    if (!c->validate()) throw runtime_error("Invalid choice!");
 
     p->data.a += fmin(angular_speed, abs(c->angle)) * signum(c->angle);
 
@@ -304,11 +305,7 @@ vec pod_game::vectorize_choice(choice_ptr c_base, int pid) {
 
   // feature: direction towards next checkpoint
   double a_ncp = angle_difference(point_angle(get_checkpoint(a.passed_checkpoint + 1) - a.x), a.a);
-  double da = a_ncp - c->angle;
-  bool same_sign = signum(a_ncp) == signum(c->angle);
-  bool over_reach = fabs(a_ncp) > angular_speed && fabs(fabs(c->angle) - angular_speed) < 0.01;
-  bool on_target = fabs(a_ncp) <= angular_speed && fabs(a_ncp - c->angle) < angular_speed / 3;
-  x.push_back(same_sign && (over_reach || on_target));  // 4
+  x.push_back(a_ncp);  // 4
 
   // team role index
   x.push_back(players[pid]->team_index);  // 5
