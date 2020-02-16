@@ -4,5 +4,5 @@
 
 class tournament {
  public:
-  virtual void run(population_manager_ptr pm);
+  virtual void run(population_manager_ptr pm) = 0;
 };

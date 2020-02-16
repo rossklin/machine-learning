@@ -9,7 +9,8 @@ class population_manager {
   std::vector<agent_ptr> pop;
 
   population_manager(int popsize);
-  virtual void prepare_epoch();
+  std::string pop_stats(std::string row_prefix) const;
+  std::vector<agent_ptr> topn(int n) const;
+  virtual void prepare_epoch(int epoch);
   virtual void evolve();
-  std::string pop_stats() const;
 };
