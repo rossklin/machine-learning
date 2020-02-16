@@ -20,7 +20,7 @@ struct pod_data {
   int shield_active;
 };
 
-class pod_agent : public standard_agent {
+class pod_agent : public agent {
  public:
   pod_data data;
 

@@ -362,8 +362,7 @@ void arena::evolution(int ngames) {
       ofstream fmeta("game.meta.csv", ios::app);
 
       // find opponent to print
-      agent_ptr
-          op;
+      agent_ptr op;
       for (auto p : gr->players) {
         if (p.second->team != 0) {
           op = p.second;

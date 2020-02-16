@@ -22,14 +22,12 @@ class pod_game : public game, public std::enable_shared_from_this<pod_game> {
  protected:
   hm<int, double> htable();
   hm<int, double> ttable();
-  point get_checkpoint(int idx);
 
-  int game_id;
   bool did_finish;
   int run_laps;
-  int tree_depth;
   std::vector<point> checkpoint;
 
+  point get_checkpoint(int idx);
   hm<int, pod_agent_ptr> get_typed_agents();
 
  public:
@@ -41,25 +39,15 @@ class pod_game : public game, public std::enable_shared_from_this<pod_game> {
   static constexpr double friction = 0.85;
   static constexpr double pod_mass = 1;
 
-  pod_game(int teams, int ppt, int tree_depth);
-
-  // static agent_ptr simple_pod_agent();
-  // static agent_ptr rbf_pod_agent();
-  // static agent_ptr tree_pod_agent();
-  game_ptr generate_starting_state(std::vector<agent_ptr> p);
-
+  void initialize();
   record_table increment();
   bool finished();
   std::string end_stats(int pid, int pid2);
   int select_winner();
-  double winner_reward(int epoch);
   double score_simple(int pid);
   void reset();
-  agent_ptr generate_player();
-  agent_ptr generate_refbot();
   std::vector<choice_ptr> generate_choices(agent_ptr a);
   vec vectorize_choice(choice_ptr c, int pid);
-  float reward_win();
 };
 
 typedef std::shared_ptr<pod_game> pod_game_ptr;
