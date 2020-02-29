@@ -2,7 +2,10 @@
 
 #include "arena.hpp"
 #include "evaluator.hpp"
+#include "game_generator.hpp"
 #include "pod_game.hpp"
+#include "population_manager.hpp"
+#include "random_tournament.hpp"
 
 using namespace std;
 
@@ -32,9 +35,13 @@ int main(int argc, char **argv) {
     }
   }
 
-  game_ptr g(new pod_game(tpg, ppt, tree_depth));
-  arena a(g, threads, ppt, tpg, preplim);
-  a.evolution(ngames);
+  typedef pod_agent<simple_pod_evaluator> refbot_t;
+  typedef pod_agent<tree_evaluator> agent_t;
+  typedef game_generator<pod_game<agent_t>, refbot_t> game_t;
+  typedef population_manager<agent_t> popmanager_t;
+
+  arena<game_t, random_tournament, popmanager_t> a(tpg, ppt);
+  a.evolution(threads, ngames);
 
   return 0;
 }

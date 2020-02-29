@@ -4,7 +4,10 @@
 
 using namespace std;
 
-pod_agent::pod_agent(evaluator_ptr e, choice_selector_ptr c) : standard_agent(e, c) {}
+template <typename E>
+pod_agent<E>::pod_agent() : agent<E>() {
+  label = "tree-pod-agent";
+}
 
 agent_ptr pod_agent::clone() {
   pod_agent_ptr a = pod_agent_ptr(new pod_agent(eval, csel));

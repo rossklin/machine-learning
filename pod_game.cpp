@@ -12,39 +12,8 @@
 
 using namespace std;
 
-int pod_choice::vector_dim() { return 4; }
-bool pod_choice::validate() { return true; }
-
-pod_agent_ptr simple_pod_agent(evaluator_ptr e) {
-  choice_selector_ptr c(new choice_selector(0));
-  pod_agent_ptr a(new pod_agent(e, c));
-
-  a->team = a->id;
-  a->label = "simple-pod";
-  return a;
-}
-
-pod_agent_ptr rbf_pod_agent() {
-  pod_agent_ptr a = simple_pod_agent(evaluator_ptr(new rbf_evaluator));
-  a->label = "rbf-pod";
-  return a;
-}
-
-pod_agent_ptr tree_pod_agent() {
-  pod_agent_ptr a = simple_pod_agent(evaluator_ptr(new tree_evaluator));
-  a->label = "tree-pod";
-  return a;
-}
-
-pod_game::pod_game(int teams, int ppt, int tree_depth) : game(teams, ppt), tree_depth(tree_depth) {}
-
-game_ptr pod_game::generate_starting_state(std::vector<agent_ptr> p) {
-  pod_game_ptr g(new pod_game(nr_of_teams, ppt, tree_depth));
-
-  for (int i = 0; i < p.size(); i++) {
-    players[p[i]->id] = p[i];
-  }
-
+template <typename A>
+void pod_game<A>::initialize() {
   // generate checkpoints
   int n = rand_int(2, 5);
   checkpoint.resize(n);
@@ -55,8 +24,8 @@ game_ptr pod_game::generate_starting_state(std::vector<agent_ptr> p) {
   point v0 = normv(a01 + M_PI / 2);
   int pc = 0;
 
-  auto gen_pod = [g, &pc, v0, a01]() -> pod_data {
-    point start = g->checkpoint[0] + (g->players.size() / (double)2 - pc - 0.5) * 2 * pod_radius * v0;
+  auto gen_pod = [this, &pc, v0, a01]() -> pod_data {
+    point start = checkpoint[0] + (players.size() / (double)2 - pc - 0.5) * 2 * pod_radius * v0;
     pc++;
 
     // point x;
@@ -72,18 +41,45 @@ game_ptr pod_game::generate_starting_state(std::vector<agent_ptr> p) {
   };
 
   for (auto x : get_typed_agents()) x.second->data = gen_pod();
-  return g;
 }
 
-hm<int, pod_agent_ptr> pod_game::get_typed_agents() {
-  hm<int, pod_agent_ptr> res;
-  for (auto x : players) {
-    res[x.first] = static_pointer_cast<pod_agent>(x.second);
-  }
-  return res;
-}
+int pod_choice::vector_dim() { return 4; }
+bool pod_choice::validate() { return true; }
 
-record_table pod_game::increment() {
+// agent_ptr simple_pod_agent(evaluator_ptr e) {
+//   choice_selector_ptr c(new choice_selector(0));
+//   agent_ptr a(new pod_agent(e, c));
+
+//   a->team = a->id;
+//   a->label = "simple-pod";
+//   return a;
+// }
+
+// agent_ptr rbf_pod_agent() {
+//   agent_ptr a = simple_pod_agent(evaluator_ptr(new rbf_evaluator));
+//   a->label = "rbf-pod";
+//   return a;
+// }
+
+// agent_ptr tree_pod_agent() {
+//   agent_ptr a = simple_pod_agent(evaluator_ptr(new tree_evaluator));
+//   a->label = "tree-pod";
+//   return a;
+// }
+
+template <typename A>
+pod_game<A>::pod_game(player_table pl) : players(pl) {}
+
+// hm<int, agent_ptr> pod_game<A>::get_typed_agents() {
+//   hm<int, agent_ptr> res;
+//   for (auto x : players) {
+//     res[x.first] = static_pointer_cast<pod_agent>(x.second);
+//   }
+//   return res;
+// }
+
+template <typename A>
+record_table pod_game<A>::increment() {
   record_table res;
   hm<int, double> htab_before = htable();
   auto agents = get_typed_agents();
@@ -95,7 +91,7 @@ record_table pod_game::increment() {
   pod_game_ptr self_ref = shared_from_this();
   for (auto x : agents) {
     int pid = x.first;
-    pod_agent_ptr p = x.second;
+    agent_ptr p = x.second;
 
     shared_ptr<pod_choice> c = static_pointer_cast<pod_choice>(p->select_choice(self_ref));
     res[pid].input = vectorize_choice(c, pid);
@@ -157,7 +153,7 @@ record_table pod_game::increment() {
 
   // update checkpoint and lap info
   for (auto x : agents) {
-    pod_agent_ptr p = x.second;
+    agent_ptr p = x.second;
     int pid = x.first;
 
     int idx = modulo(p->data.passed_checkpoint + 1, (int)checkpoint.size());
@@ -200,7 +196,7 @@ record_table pod_game::increment() {
     fstream f("game.csv", ios::app);
     for (auto x : get_typed_agents()) {
       int pid = x.first;
-      pod_agent_ptr p = x.second;
+      agent_ptr p = x.second;
       f << game_id << "," << results.size() << "," << p->team << "," << p->data.lap << "," << pid << "," << p->data.x.x << ", " << p->data.x.y << ", " << res[pid].reward << endl;
     }
     f.close();
@@ -209,11 +205,13 @@ record_table pod_game::increment() {
   return res;
 }
 
-bool pod_game::finished() {
+template <typename A>
+bool pod_game<A>::finished() {
   return did_finish || results.size() > 300;
 }
 
-std::string pod_game::end_stats(int pid, int pid2) {
+template <typename A>
+std::string pod_game<A>::end_stats(int pid, int pid2) {
   auto h = htable();
   string sep = ",";
   stringstream ss;
@@ -223,7 +221,8 @@ std::string pod_game::end_stats(int pid, int pid2) {
   return ss.str();
 }
 
-int pod_game::select_winner() {
+template <typename A>
+int pod_game<A>::select_winner() {
   if (winner > -1) {
     return winner;
   } else {
@@ -233,35 +232,39 @@ int pod_game::select_winner() {
   }
 }
 
-double pod_game::winner_reward(int epoch) {
+template <typename A>
+double pod_game<A>::winner_reward(int epoch) {
   return 1000;
 }
 
-double pod_game::score_simple(int pid) {
+template <typename A>
+double pod_game<A>::score_simple(int pid) {
   double standard_speed = 100;
   return htable()[pid] / results.size() / standard_speed;
 }
 
-void pod_game::reset() {
+template <typename A>
+void pod_game<A>::reset() {
   results.clear();
   winner = -1;
   did_finish = false;
 }
 
-agent_ptr pod_game::generate_player() {
-  if (u01() < 0.5) {
-    return tree_pod_agent();
-  } else {
-    return rbf_pod_agent();
-  }
-}
+// agent_ptr pod_game<A>::generate_player() {
+//   if (u01() < 0.5) {
+//     return tree_pod_agent();
+//   } else {
+//     return rbf_pod_agent();
+//   }
+// }
 
-agent_ptr pod_game::generate_refbot() {
-  return simple_pod_agent(evaluator_ptr(new simple_pod_evaluator));
-}
+// agent_ptr pod_game<A>::generate_refbot() {
+//   return simple_pod_agent(evaluator_ptr(new simple_pod_evaluator));
+// }
 
-std::vector<choice_ptr> pod_game::generate_choices(agent_ptr p_base) {
-  pod_agent_ptr p = static_pointer_cast<pod_agent>(p_base);
+template <typename A>
+std::vector<choice_ptr> pod_game<A>::generate_choices(agent_ptr p_base) {
+  agent_ptr p = static_pointer_cast<pod_agent>(p_base);
   vector<pod_choice> opts;
   double thrust_limit = 100 * p->complexity_penalty();
 
@@ -289,7 +292,8 @@ std::vector<choice_ptr> pod_game::generate_choices(agent_ptr p_base) {
   return res;
 }
 
-vec pod_game::vectorize_choice(choice_ptr c_base, int pid) {
+template <typename A>
+vec pod_game<A>::vectorize_choice(choice_ptr c_base, int pid) {
   pod_choice_ptr c = static_pointer_cast<pod_choice>(c_base);
   assert(players.count(pid) > 0);
   vector<double> x;
@@ -355,7 +359,8 @@ vec pod_game::vectorize_choice(choice_ptr c_base, int pid) {
 // protected members
 
 // table of heuristic score for all players
-hm<int, double> pod_game::htable() {
+template <typename A>
+hm<int, double> pod_game<A>::htable() {
   hm<int, double> ttab, htab;
   ttab = ttable();
   for (auto p : players) htab[p.first] = ttab[p.second->team];
@@ -363,7 +368,8 @@ hm<int, double> pod_game::htable() {
 }
 
 // table of heuristic score for all teams
-hm<int, double> pod_game::ttable() {
+template <typename A>
+hm<int, double> pod_game<A>::ttable() {
   hm<int, double> x, dtab, ttab;
   double dsum = 0;
   int ncheck = checkpoint.size();
@@ -387,4 +393,5 @@ hm<int, double> pod_game::ttable() {
   return ttab;
 }
 
-point pod_game::get_checkpoint(int idx) { return checkpoint[modulo(idx, (int)checkpoint.size())]; }
+template <typename A>
+point pod_game<A>::get_checkpoint(int idx) { return checkpoint[modulo(idx, (int)checkpoint.size())]; }

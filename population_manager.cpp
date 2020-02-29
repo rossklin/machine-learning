@@ -6,7 +6,8 @@
 using namespace std;
 
 // Let #threads bots play 100 games, select those which pass score limit and then select the best one
-agent_ptr prepared_player(function<agent_ptr()> gen, float plim) {
+template <typename A>
+population_manager<A>::agent_ptr population_manager<A>::prepared_player(function<agent_ptr()> gen, float plim) const {
   vector<agent_ptr> buf(threads);
 
 #pragma omp parallel for
@@ -44,14 +45,13 @@ agent_ptr prepared_player(function<agent_ptr()> gen, float plim) {
 };
 
 // Repeatedly attempt to make prepared players until n have been generated
-
-vector<agent_ptr> prepare_n(function<agent_ptr()> gen, int n, float plim) {
+template <typename A>
+vector<typename population_manager<A>::agent_ptr> population_manager<A>::prepare_n(function<agent_ptr()> gen, int n, float plim) const {
   vector<agent_ptr> buf(n);
 
   for (int i = 0; i < n; i++) {
     cout << "prepare_n: starting " << (i + 1) << "/" << n << endl;
-    agent_ptr
-        a = 0;
+    agent_ptr a = 0;
     while (!a) a = prepared_player(gen, plim);
     buf[i] = a;
     cout << "prepare_n: completed " << (i + 1) << "/" << n << endl;
@@ -60,9 +60,11 @@ vector<agent_ptr> prepare_n(function<agent_ptr()> gen, int n, float plim) {
   return buf;
 }
 
-population_manager::population_manager(int popsize) : popsize(popsize) {}
+template <typename A>
+population_manager<A>::population_manager(int popsize) : popsize(popsize) {}
 
-string population_manager::pop_stats(string row_prefix) const {
+template <typename A>
+string population_manager<A>::pop_stats(string row_prefix) const {
   sstream ss;
   string sep = ",";
   for (i = 0; i < player.size(); i++) {
@@ -71,9 +73,13 @@ string population_manager::pop_stats(string row_prefix) const {
   fstat.close();
 }
 
-vector<agent_ptr> population_manager::topn(int n) const { return vector<agent_ptr>(pop.begin(), pop.begin() + n); }
+template <typename A>
+vector<typename population_manager<A>::agent_ptr> population_manager<A>::topn(int n) const {
+  return vector<agent_ptr>(pop.begin(), pop.begin() + n);
+}
 
-void population_manager::prepare_epoch(int epoch) {
+template <typename A>
+void population_manager<A>::prepare_epoch(int epoch) {
   double ltime = log(epoch + 100);
   float winner_reward = base_game->winner_reward(epoch);
   int protected_age = ltime / 2 + 1;
@@ -100,7 +106,8 @@ void population_manager::prepare_epoch(int epoch) {
   }
 }
 
-void population_manager::evolve() {
+template <typename A>
+void population_manager<A>::evolve() {
   // select nkeep best players
   sort(player.begin(), player.end(), [](agent_ptr a, agent_ptr b) -> bool { return a->score > b->score; });
 

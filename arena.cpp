@@ -22,21 +22,18 @@ using namespace std;
 #define SCORE_UPDATE_RATE 0.01
 
 // ARENA
-
-arena::arena(game_ptr bg, int threads, int ppt, int tpg, float plim) : base_game(bg) {
-  assert(threads > 0);
+template <typename G, typename T, typename P>
+arena<G, T, P>::arena(int ppt, int tpg) {
   assert(ppt > 0);
   assert(tpg > 1);
 
-  this->threads = threads;
   this->ppt = ppt;
   this->tpg = tpg;
   this->ppg = ppt * tpg;
-  this->preplim = plim;
 }
 
 // // for online learning, unlikely we need it
-// void arena::train_agents_sarsa(vector<choice::record_table> results) {
+// void arena<G,T,P>::train_agents_sarsa(vector<choice::record_table> results) {
 //   int n = results.size();
 //   double alpha = 0.1;
 //   double gamma = 0.8;
@@ -54,7 +51,8 @@ arena::arena(game_ptr bg, int threads, int ppt, int tpg, float plim) : base_game
 //   }
 // }
 
-double mate_score(agent_ptr parent1, agent_ptr x) {
+template <typename G, typename T, typename P>
+double arena<G, T, P>::mate_score(agent_ptr parent1, agent_ptr x) const {
   // x is protected so score is not reliable
   if (x->was_protected) return 0;
 
@@ -67,7 +65,8 @@ double mate_score(agent_ptr parent1, agent_ptr x) {
   return x->score + different_ancestors - common_parents;
 };
 
-void arena::evolution(int ngames) {
+template <typename G, typename T, typename P>
+void arena<G, T, P>::evolution(int threads, int ngames) {
 #ifndef DEBUG
   omp_set_num_threads(threads);
 #endif
@@ -95,7 +94,8 @@ void arena::evolution(int ngames) {
   }
 }
 
-void arena::write_stats(int epoch) const {
+template <typename G, typename T, typename P>
+void arena<G, T, P>::write_stats(int epoch) const {
   // store best brains
   for (i = 0; i < 3 && i < player.size(); i++) {
     ofstream f("brains/p" + to_string(i) + "_r" + to_string(epoch) + ".txt");

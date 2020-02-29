@@ -1,8 +1,12 @@
+#include <iostream>
+
 #include "random_tournament.hpp"
 
 using namespace std;
 
-void random_tournament::run(population_manager_ptr pm) {
+void random_tournament::run(population_manager_ptr pm, int epoch) {
+  int game_rounds = 10;
+  int practice_rounds = 3;
   for (int round = 0; round < game_rounds; round++) {
     // play a number of games, reusing players as needed
     cout << "Arena: epoch " << epoch << " round " << round << (round < practice_rounds ? " (practice)" : "") << ": select players" << endl;
