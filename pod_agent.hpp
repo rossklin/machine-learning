@@ -20,11 +20,12 @@ struct pod_data {
   int shield_active;
 };
 
-class pod_agent : public agent {
+template <typename E>
+class pod_agent : public agent<E> {
  public:
   pod_data data;
 
-  pod_agent(evaluator_ptr e, choice_selector_ptr c);
+  pod_agent();
   agent_ptr clone() override;
 };
 
@@ -41,4 +42,6 @@ class simple_pod_evaluator : public evaluator {
   std::string status_report();
 };
 
-typedef std::shared_ptr<pod_agent> pod_agent_ptr;
+typedef std::shared_ptr<pod_agent<tree_evaluator>> tree_pod_agent_ptr;
+typedef std::shared_ptr<pod_agent<rbf_evaluator>> rbf_pod_agent_ptr;
+typedef std::shared_ptr<pod_agent<simple_pod_evaluator>> simple_pod_agent_ptr;

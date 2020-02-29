@@ -19,7 +19,6 @@ typedef std::shared_ptr<game> game_ptr;
 typedef std::shared_ptr<agent> agent_ptr;
 typedef std::shared_ptr<choice> choice_ptr;
 typedef std::shared_ptr<evaluator> evaluator_ptr;
-typedef std::shared_ptr<choice_selector> choice_selector_ptr;
 typedef std::shared_ptr<standard_agent> standard_agent_ptr;
 typedef std::shared_ptr<population_manager> population_manager_ptr;
 typedef std::shared_ptr<game_generator> game_generator_ptr;

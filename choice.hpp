@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 
 class choice {
  public:
@@ -8,14 +9,20 @@ class choice {
   virtual int vector_dim() = 0;
 };
 
-class choice_selector {
+enum cs_schema {
+  CS_RANKED,
+  CS_WEIGHTED
+};
+
+struct choice_selector {
   float xrate;
+  cs_schema schema;
 
  public:
-  choice_selector(float r);
-  virtual choice_ptr select(game_ptr g, agent_ptr a);
-  virtual void set_exploration_rate(float r);
-  virtual choice_selector_ptr clone();
+  choice_selector(float r, cs_schema s = CS_RANKED);
+  choice_ptr select(std::vector<choice_ptr> opts);
+  void set_exploration_rate(float r);
+  void set_schema(cs_schema s);
 };
 
 // typedef std::function<vec(game::ptr g, int pid, choice::ptr c)> vectorizer;

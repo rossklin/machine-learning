@@ -39,6 +39,7 @@ class pod_game : public game, public std::enable_shared_from_this<pod_game> {
   static constexpr double friction = 0.85;
   static constexpr double pod_mass = 1;
 
+  pod_game(player_table pl);
   void initialize();
   record_table increment();
   bool finished();
@@ -48,6 +49,7 @@ class pod_game : public game, public std::enable_shared_from_this<pod_game> {
   void reset();
   std::vector<choice_ptr> generate_choices(agent_ptr a);
   vec vectorize_choice(choice_ptr c, int pid);
+  double winner_reward(int epoch);
 };
 
 typedef std::shared_ptr<pod_game> pod_game_ptr;

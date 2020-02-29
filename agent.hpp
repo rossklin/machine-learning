@@ -8,12 +8,13 @@
 #include "types.hpp"
 
 // AGENT
+template <typename E>
 class agent : public std::enable_shared_from_this<agent> {
- protected:
-  evaluator_ptr eval;
-  choice_selector_ptr csel;
-
  public:
+  typedef std::shared_ptr<E> eptr;
+  eptr eval;
+  choice_selector csel;
+
   static int pid;
 
   int team;
@@ -30,7 +31,7 @@ class agent : public std::enable_shared_from_this<agent> {
   std::set<int> parents;
   std::set<int> ancestors;
 
-  agent(evaluator_ptr e, choice_selector_ptr c);
+  agent();
   virtual agent_ptr clone() = 0;
 
   virtual void train(std::vector<record> records);

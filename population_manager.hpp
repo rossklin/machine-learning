@@ -3,6 +3,7 @@
 #include <vector>
 #include "types.hpp"
 
+template <typename A>
 class population_manager {
  public:
   int popsize;
