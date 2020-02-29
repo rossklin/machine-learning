@@ -6,10 +6,10 @@
 using namespace std;
 
 template <typename GAME_CLASS, typename REFBOT_CLASS>
-game_generator<GAME_CLASS, REFBOT_CLASS>::game_ptr game_generator<GAME_CLASS, REFBOT_CLASS>::generate_starting_state(std::vector<agent_ptr> p) {
-  player_table pl;
+typename game_generator<GAME_CLASS, REFBOT_CLASS>::game_ptr game_generator<GAME_CLASS, REFBOT_CLASS>::generate_starting_state(std::vector<agent_ptr> p) {
+  typename GAME_CLASS::player_table pl;
   for (auto a : p) pl[a->id] = a;
-  shared_ptr<GAME_CLASS> g(new pod_game(pl));
+  game_ptr g(new GAME_CLASS(pl));
   g->initialize();
   return g;
 }
@@ -33,7 +33,7 @@ vector<typename game_generator<GAME_CLASS, REFBOT_CLASS>::agent_ptr> game_genera
 }
 
 template <typename GAME_CLASS, typename REFBOT_CLASS>
-game_generator<GAME_CLASS, REFBOT_CLASS>::game_ptr game_generator<GAME_CLASS, REFBOT_CLASS>::team_bots_vs(agent_ptr a) {
+typename game_generator<GAME_CLASS, REFBOT_CLASS>::game_ptr game_generator<GAME_CLASS, REFBOT_CLASS>::team_bots_vs(agent_ptr a) {
   vector<agent_ptr> ps(nr_of_teams);
   ps[0] = a;
   for (int i = 1; i < nr_of_teams; i++) ps[i] = new REFBOT_CLASS;

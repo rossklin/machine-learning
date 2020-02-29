@@ -7,7 +7,7 @@
 template <typename A>
 class game {
  public:
-  typedef A::ptr agent_ptr;
+  typedef typename A::ptr agent_ptr;
   typedef hm<int, agent_ptr> player_table;
 
   int game_id;

@@ -1,4 +1,7 @@
 * ideas
+** Template structure
+*** Must create an abstract agent class so refbot and agent can run in the same game
+*** Thus, we can go back to using a generic agent_ptr instead of all the local defs
 ** tree evaluator
 *** store derivative of output with respect to each sub-tree result in each iteration
     Sub-trees with high variance or just high derivatives should be

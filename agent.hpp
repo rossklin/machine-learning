@@ -5,11 +5,12 @@
 #include <sstream>
 #include <string>
 
+#include "choice.hpp"
 #include "types.hpp"
 
 // AGENT
 template <typename E>
-class agent : public std::enable_shared_from_this<agent> {
+class agent : public std::enable_shared_from_this<agent<E>> {
  public:
   typedef std::shared_ptr<E> eptr;
   typedef std::shared_ptr<agent<E>> ptr;

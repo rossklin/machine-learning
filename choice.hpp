@@ -1,6 +1,8 @@
 #pragma once
 #include <string>
 
+#include "types.hpp"
+
 class choice {
  public:
   float value_buf;

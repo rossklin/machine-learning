@@ -38,14 +38,14 @@ void agent<E>::set_exploration_rate(float r) {
 }
 
 template <typename E>
-agent<E>::ptr agent<E>::mate(ptr p) {
+typename agent<E>::ptr agent<E>::mate(ptr p) {
   ptr a = clone();
   a->eval = p->mate_evaluator(eval);
   return a;
 }
 
 template <typename E>
-agent<E>::ptr agent<E>::mutate() {
+typename agent<E>::ptr agent<E>::mutate() {
   ptr a = clone();
   a->eval->mutate();
   return a;

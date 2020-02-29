@@ -6,7 +6,7 @@ template <typename GAME_CLASS, typename REFBOT_CLASS>
 class game_generator {
  public:
   typedef std::shared_ptr<GAME_CLASS> game_ptr;
-  typedef GAME_CLASS::agent_ptr agent_ptr;
+  typedef typename GAME_CLASS::agent_ptr agent_ptr;
 
   int nr_of_teams;
   int ppt;
