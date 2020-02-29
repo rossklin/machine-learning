@@ -11,6 +11,7 @@
 #include "utility.hpp"
 
 using namespace std;
+using namespace pod_game_parameters;
 
 template <typename A>
 void pod_game<A>::initialize() {

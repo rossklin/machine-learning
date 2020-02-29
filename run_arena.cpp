@@ -6,6 +6,7 @@
 #include "pod_game.hpp"
 #include "population_manager.hpp"
 #include "random_tournament.hpp"
+#include "simple_pod_evaluator.hpp"
 
 using namespace std;
 

@@ -2,49 +2,37 @@
 #include <cmath>
 #include <fstream>
 
+#include "game_generator.hpp"
 #include "pod_game.hpp"
+#include "population_manager.hpp"
+#include "simple_pod_evaluator.hpp"
 #include "utility.hpp"
 
 using namespace std;
+typedef pod_agent<simple_pod_evaluator> refbot_t;
+typedef pod_agent<tree_evaluator> agent_t;
+typedef game_generator<pod_game<agent_t>, refbot_t> game_t;
 
 void pure_train() {
-  int tree_depth = 10;
-  pod_game_ptr base_game(new pod_game(2, 1, tree_depth));
-  input_sampler isampler = base_game->generate_input_sampler();
-  int choice_dim = base_game->choice_dim();
-
-  // initialize players
-  int n = 100;
-  vector<agent_ptr> pool(n);
-  for (int i = 0; i < n; i++) {
-    pool[i] = base_game->generate_player();
-    pool[i]->initialize_from_input(isampler, choice_dim);
-  }
+  game_t ggen(2, 1);
+  agent_t::ptr a(new agent_t);
 
   omp_lock_t writelock;
   omp_init_lock(&writelock);
 
   for (int epoch = 1; true; epoch++) {
-#pragma omp parallel for
-    for (int i = 0; i < n; i++) {
-      vector<agent_ptr> p(2);
-      p[0] = pool[i];
-      p[0]->set_exploration_rate(0.7 - 0.6 * atan(epoch / (float)40) / (M_PI / 2));
-      p[1] = base_game->generate_refbot();
+    a->set_exploration_rate(0.7 - 0.6 * atan(epoch / (float)40) / (M_PI / 2));
+    game_t::game_ptr g = ggen.team_bots_vs(a);
+    auto res = g->play(epoch);
+    a->train(res.at(a->id));
+    a->age++;
 
-      pod_game_ptr g = static_pointer_cast<pod_game>(base_game->generate_starting_state(p));
-      g->play();
-
-      g->train(p[0]->id, -1, p[0]->team);
-      p[0]->age++;
-
-      omp_set_lock(&writelock);
-      ofstream fmeta("pure_train.meta.csv", ios::app);
-      string xmeta = g->end_stats(p[0]->id, p[1]->id);
-      fmeta << xmeta << endl;
-      fmeta.close();
-      omp_unset_lock(&writelock);
-    }
+    omp_set_lock(&writelock);
+    ofstream fmeta("pure_train.meta.csv", ios::app);
+    string xmeta = g->end_stats(a->id, hm_keys(g->players).back());  // todo: get id of other player correctly
+    fmeta << xmeta << endl;
+    fmeta.close();
+    omp_unset_lock(&writelock);
     cout << "Completed epoch " << epoch << endl;
   }
 

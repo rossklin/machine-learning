@@ -18,6 +18,16 @@ class pod_choice : public choice {
   int vector_dim();
 };
 
+namespace pod_game_parameters {
+constexpr double width = 16000;
+constexpr double height = 9000;
+constexpr double checkpoint_radius = 600;
+constexpr double pod_radius = 400;
+constexpr double angular_speed = 0.314;
+constexpr double friction = 0.85;
+constexpr double pod_mass = 1;
+};  // namespace pod_game_parameters
+
 template <typename A>
 class pod_game : public game<A>, public std::enable_shared_from_this<pod_game> {
  protected:
@@ -32,14 +42,6 @@ class pod_game : public game<A>, public std::enable_shared_from_this<pod_game> {
   hm<int, pod_agent_ptr> get_typed_agents();
 
  public:
-  static constexpr double width = 16000;
-  static constexpr double height = 9000;
-  static constexpr double checkpoint_radius = 600;
-  static constexpr double pod_radius = 400;
-  static constexpr double angular_speed = 0.314;
-  static constexpr double friction = 0.85;
-  static constexpr double pod_mass = 1;
-
   pod_game(player_table pl);
   void initialize();
   record_table increment();

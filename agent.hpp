@@ -12,6 +12,7 @@ template <typename E>
 class agent : public std::enable_shared_from_this<agent> {
  public:
   typedef std::shared_ptr<E> eptr;
+  typedef std::shared_ptr<agent<E>> ptr;
   eptr eval;
   choice_selector csel;
 
@@ -32,13 +33,12 @@ class agent : public std::enable_shared_from_this<agent> {
   std::set<int> ancestors;
 
   agent();
-  virtual agent_ptr clone() = 0;
+  virtual ptr clone() = 0;
 
   virtual void train(std::vector<record> records);
-  virtual choice_ptr select_choice(game_ptr g);
   virtual void set_exploration_rate(float r);
-  virtual agent_ptr mate(agent_ptr p);
-  virtual agent_ptr mutate();
+  virtual ptr mate(ptr p);
+  virtual ptr mutate();
   virtual double evaluate_choice(vec x);
   virtual evaluator_ptr mate_evaluator(evaluator_ptr p);
   virtual void update_evaluator(vec input, float sf_rewards);

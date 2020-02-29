@@ -9,11 +9,14 @@
 
 using namespace std;
 
-game::game(player_table pl) : players(pl) {}
+template <typename A>
+game<A>::game(player_table pl) : players(pl) {}
 
-void game::initialize() {}  // todo: what was this for?
+template <typename A>
+void game<A>::initialize() {}  // todo: what was this for?
 
-hm<int, vector<record>> game::play(int epoch) {
+template <typename A>
+hm<int, vector<record>> game<A>::play(int epoch) {
   hm<int, vector<record>> res;
 
   while (!finished()) {
@@ -27,4 +30,11 @@ hm<int, vector<record>> game::play(int epoch) {
   }
 
   return res;
+}
+
+template <typename A>
+choice_ptr game<A>::select_choice(agent_ptr a) {
+  auto opts = generate_choices(shared_from_this());
+  for (auto opt : opts) opt->value_buf = a->evaluate_choice(vectorize_choice(opt, a->id));
+  return csel.select(opts);
 }

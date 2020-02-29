@@ -23,22 +23,9 @@ struct pod_data {
 template <typename E>
 class pod_agent : public agent<E> {
  public:
-  typedef std::shared_ptr<pod_agent> ptr;
+  typedef std::shared_ptr<pod_agent<E>> ptr;
   pod_data data;
 
   pod_agent();
-  ptr clone() override;
-};
-
-class simple_pod_evaluator : public evaluator {
- public:
-  double evaluate(std::vector<double> x);
-  void update(std::vector<double> input, double output, int age);
-  evaluator_ptr mate(evaluator_ptr partner);
-  evaluator_ptr mutate();
-  evaluator_ptr clone();
-  std::string serialize();
-  void deserialize(std::string data);
-  void initialize(input_sampler sampler, int cdim);
-  std::string status_report();
+  typename agent<E>::ptr clone() override;
 };
