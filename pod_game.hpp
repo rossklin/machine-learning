@@ -18,7 +18,8 @@ class pod_choice : public choice {
   int vector_dim();
 };
 
-class pod_game : public game, public std::enable_shared_from_this<pod_game> {
+template <typename A>
+class pod_game : public game<A>, public std::enable_shared_from_this<pod_game> {
  protected:
   hm<int, double> htable();
   hm<int, double> ttable();
@@ -51,6 +52,3 @@ class pod_game : public game, public std::enable_shared_from_this<pod_game> {
   vec vectorize_choice(choice_ptr c, int pid);
   double winner_reward(int epoch);
 };
-
-typedef std::shared_ptr<pod_game> pod_game_ptr;
-typedef std::shared_ptr<pod_choice> pod_choice_ptr;

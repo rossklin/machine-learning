@@ -4,10 +4,12 @@
 
 #include "types.hpp"
 
-typedef hm<int, agent_ptr> player_table;
-
+template <typename A>
 class game {
  public:
+  typedef A::ptr agent_ptr;
+  typedef hm<int, agent_ptr> player_table;
+
   int game_id;
   bool enable_output;
   int winner;
