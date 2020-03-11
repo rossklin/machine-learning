@@ -7,15 +7,13 @@
 
 using namespace std;
 
-template <typename E>
-agent<E>::agent() {
-  static int idc = 0;
+int agent::idc = 0;
+
+agent::agent() : csel(0.2) {
   id = idc++;
-  eval = new E;
 }
 
-template <typename E>
-void agent<E>::train(vector<record> results) {
+void agent::train(vector<record> results) {
   int n = results.size();
   double gamma = 0.95;
 
@@ -24,56 +22,47 @@ void agent<E>::train(vector<record> results) {
     results[i].sum_future_rewards = r + gamma * results[i + 1].sum_future_rewards;
   }
 
-  for (auto y : results) update_evaluator(y.input, y.sum_future_rewards);
+  for (auto y : results) eval->update(y.input, y.sum_future_rewards, age);
 }
 
-template <typename E>
-bool agent<E>::evaluator_stability() {
+bool agent::evaluator_stability() const {
   return eval->stable;
 }
 
-template <typename E>
-void agent<E>::set_exploration_rate(float r) {
+void agent::set_exploration_rate(float r) {
   csel.set_exploration_rate(r);
 }
 
-template <typename E>
-typename agent<E>::ptr agent<E>::mate(ptr p) {
-  ptr a = clone();
-  a->eval = p->mate_evaluator(eval);
+agent_ptr agent::mate(agent_ptr p) const {
+  agent_ptr a = clone();
+  a->eval = p->eval->mate(eval);
   return a;
 }
 
-template <typename E>
-typename agent<E>::ptr agent<E>::mutate() {
-  ptr a = clone();
+agent_ptr agent::mutate() const {
+  agent_ptr a = clone();
   a->eval->mutate();
   return a;
 }
 
-template <typename E>
-double agent<E>::evaluate_choice(vec x) {
+double agent::evaluate_choice(vec x) const {
   return eval->evaluate(x);
 }
 
-template <typename E>
-evaluator_ptr agent<E>::mate_evaluator(evaluator_ptr e) {
-  evaluator_ptr x = eval->clone();
-  x->mate(e);
-  return x;
-}
-
-template <typename E>
-void agent<E>::initialize_from_input(input_sampler s, int choice_dim) {
+void agent::initialize_from_input(input_sampler s, int choice_dim) {
   eval->initialize(s, choice_dim);
 };
 
-template <typename E>
-std::string agent<E>::serialize() {
+std::string agent::serialize() const {
   return eval->serialize();
 }
 
-template <typename E>
-void agent<E>::deserialize(std::stringstream &s) {
+void agent::deserialize(std::stringstream &s) {
   eval->deserialize(s);
+}
+
+choice_ptr agent::select_choice(game_ptr g) {
+  auto opts = g->generate_choices(shared_from_this());
+  for (auto opt : opts) opt->value_buf = evaluate_choice(g->vectorize_choice(opt, id));
+  return csel.select(opts);
 }

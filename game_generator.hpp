@@ -2,19 +2,21 @@
 
 #include "types.hpp"
 
-template <typename GAME_CLASS, typename REFBOT_CLASS>
 class game_generator {
  public:
-  typedef std::shared_ptr<GAME_CLASS> game_ptr;
-  typedef typename GAME_CLASS::agent_ptr agent_ptr;
-
+  agent_f player_generator;
+  agent_f refbot_generator;
   int nr_of_teams;
   int ppt;
 
-  game_generator(int teams, int ppt);
-  game_ptr generate_starting_state(std::vector<agent_ptr> p);
-  game_ptr team_bots_vs(agent_ptr a);
-  std::vector<agent_ptr> make_teams(std::vector<agent_ptr> ps);
-  std::function<vec()> generate_input_sampler();
-  int choice_dim();
+  game_generator(int teams, int ppt, agent_f player_generator, agent_f refbot_generator);
+
+  virtual game_ptr generate_starting_state(std::vector<agent_ptr> p) const = 0;
+
+  agent_ptr prepared_player(agent_f gen, float plim) const;
+  std::vector<agent_ptr> prepare_n(agent_f gen, int n, float plim) const;
+  game_ptr team_bots_vs(agent_ptr a) const;
+  std::vector<agent_ptr> make_teams(std::vector<agent_ptr> ps) const;
+  std::function<vec()> generate_input_sampler() const;
+  int choice_dim() const;
 };

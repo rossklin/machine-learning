@@ -28,8 +28,7 @@ constexpr double friction = 0.85;
 constexpr double pod_mass = 1;
 };  // namespace pod_game_parameters
 
-template <typename A>
-class pod_game : public game<A>, public std::enable_shared_from_this<pod_game<A>> {
+class pod_game : public game, public std::enable_shared_from_this<pod_game> {
  protected:
   hm<int, double> htable();
   hm<int, double> ttable();
@@ -39,10 +38,10 @@ class pod_game : public game<A>, public std::enable_shared_from_this<pod_game<A>
   std::vector<point> checkpoint;
 
   point get_checkpoint(int idx);
-  hm<int, A::ptr> get_typed_agents();
+  hm<int, pod_agent::ptr> get_typed_agents();
 
  public:
-  pod_game(game::player_table pl);
+  pod_game(player_table pl);
   void initialize();
   record_table increment();
   bool finished();
@@ -50,7 +49,7 @@ class pod_game : public game<A>, public std::enable_shared_from_this<pod_game<A>
   int select_winner();
   double score_simple(int pid);
   void reset();
-  std::vector<choice_ptr> generate_choices(A::ptr a);
+  std::vector<choice_ptr> generate_choices(agent_ptr a);
   vec vectorize_choice(choice_ptr c, int pid);
   double winner_reward(int epoch);
 };

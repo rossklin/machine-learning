@@ -4,14 +4,8 @@
 
 using namespace std;
 
-template <typename E>
-pod_agent<E>::pod_agent() : agent<E>() {
-  label = "tree-pod-agent";
-}
-
-template <typename E>
-typename agent<E>::ptr pod_agent<E>::clone() {
-  pod_agent<E>::ptr a(new pod_agent<E>);
+agent_ptr pod_agent::clone() const {
+  shared_ptr<pod_agent> a(new pod_agent);
   a->eval = eval->clone();
   a->csel = csel;
   a->data = data;

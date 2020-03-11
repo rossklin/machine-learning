@@ -20,12 +20,11 @@ struct pod_data {
   int shield_active;
 };
 
-template <typename E>
-class pod_agent : public agent<E> {
+class pod_agent : public agent {
  public:
-  typedef std::shared_ptr<pod_agent<E>> ptr;
+  typedef std::shared_ptr<pod_agent> ptr;
   pod_data data;
 
-  pod_agent();
-  typename agent<E>::ptr clone() override;
+  pod_agent() = default;
+  agent_ptr clone() const override;
 };

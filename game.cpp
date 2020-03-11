@@ -1,5 +1,6 @@
 #include <cassert>
 #include <functional>
+#include <memory>
 #include <vector>
 
 #include "agent.hpp"
@@ -9,17 +10,18 @@
 
 using namespace std;
 
-template <typename A>
-game<A>::game(player_table pl) : players(pl) {}
+game::game(player_table pl) : players(pl) {
+  max_turns = 100;
+}
 
-template <typename A>
-void game<A>::initialize() {}  // todo: what was this for?
+void game::initialize() {
+  turns_played = 0;
+}  // todo: what was this for?
 
-template <typename A>
-hm<int, vector<record>> game<A>::play(int epoch) {
+hm<int, vector<record>> game::play(int epoch) {
   hm<int, vector<record>> res;
 
-  while (!finished()) {
+  for (turns_played = 0; turns_played < max_turns && !finished(); turns_played++) {
     record_table rect = increment();
     for (auto x : rect) res[x.first].push_back(x.second);
   }
@@ -32,9 +34,7 @@ hm<int, vector<record>> game<A>::play(int epoch) {
   return res;
 }
 
-template <typename A>
-choice_ptr game<A>::select_choice(agent_ptr a) {
-  auto opts = generate_choices(shared_from_this());
-  for (auto opt : opts) opt->value_buf = a->evaluate_choice(vectorize_choice(opt, a->id));
-  return csel.select(opts);
+void game::reset() {
+  turns_played = 0;
+  winner = -1;
 }

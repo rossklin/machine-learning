@@ -8,16 +8,12 @@
 #include "choice.hpp"
 #include "types.hpp"
 
-// AGENT
-template <typename E>
-class agent : public std::enable_shared_from_this<agent<E>> {
+class agent : public std::enable_shared_from_this<agent> {
  public:
-  typedef std::shared_ptr<E> eptr;
-  typedef std::shared_ptr<agent<E>> ptr;
-  eptr eval;
-  choice_selector csel;
+  static int idc;
 
-  static int pid;
+  choice_selector csel;
+  evaluator_ptr eval;
 
   int team;
   int id;
@@ -33,20 +29,25 @@ class agent : public std::enable_shared_from_this<agent<E>> {
   std::set<int> parents;
   std::set<int> ancestors;
 
+  // constructors
   agent();
-  virtual ptr clone() = 0;
+  virtual void deserialize(std::stringstream &s);
 
+  // duplicators
+  virtual agent_ptr clone() const;
+  virtual agent_ptr mate(agent_ptr p) const;
+  virtual agent_ptr mutate() const;
+
+  // modifiers
   virtual void train(std::vector<record> records);
   virtual void set_exploration_rate(float r);
-  virtual ptr mate(ptr p);
-  virtual ptr mutate();
-  virtual double evaluate_choice(vec x);
-  virtual evaluator_ptr mate_evaluator(evaluator_ptr p);
-  virtual void update_evaluator(vec input, float sf_rewards);
   virtual void initialize_from_input(input_sampler s, int choice_dim);
-  virtual float complexity_penalty();
-  virtual bool evaluator_stability();
-  virtual std::string status_report();
-  virtual std::string serialize();
-  virtual void deserialize(std::stringstream &s);
+
+  // analysis
+  virtual choice_ptr select_choice(game_ptr g);
+  virtual double evaluate_choice(vec x) const;
+  virtual float complexity_penalty() const;
+  virtual bool evaluator_stability() const;
+  virtual std::string status_report() const;
+  virtual std::string serialize() const;
 };

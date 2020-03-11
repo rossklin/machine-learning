@@ -22,15 +22,8 @@ using namespace std;
 #define SCORE_UPDATE_RATE 0.01
 
 // ARENA
-template <typename G, typename T, typename P>
-arena<G, T, P>::arena(int ppt, int tpg) {
-  assert(ppt > 0);
-  assert(tpg > 1);
-
-  this->ppt = ppt;
-  this->tpg = tpg;
-  this->ppg = ppt * tpg;
-}
+template <typename T, typename P>
+arena<T, P>::arena(game_generator_ptr ggen) : ggn(ggen) {}
 
 // // for online learning, unlikely we need it
 // void arena<G,T,P>::train_agents_sarsa(vector<choice::record_table> results) {
@@ -51,8 +44,8 @@ arena<G, T, P>::arena(int ppt, int tpg) {
 //   }
 // }
 
-template <typename G, typename T, typename P>
-double arena<G, T, P>::mate_score(agent_ptr parent1, agent_ptr x) const {
+template <typename T, typename P>
+double arena<T, P>::mate_score(agent_ptr parent1, agent_ptr x) const {
   // x is protected so score is not reliable
   if (x->was_protected) return 0;
 
@@ -65,25 +58,15 @@ double arena<G, T, P>::mate_score(agent_ptr parent1, agent_ptr x) const {
   return x->score + different_ancestors - common_parents;
 };
 
-template <typename G, typename T, typename P>
-void arena<G, T, P>::evolution(int threads, int ngames) {
+template <typename T, typename P>
+void arena<T, P>::evolution(int threads, int ngames) {
 #ifndef DEBUG
   omp_set_num_threads(threads);
 #endif
 
-  // generate an initialized agent
-
-  vector<agent_ptr> player, player_buf, player_buf2, inner_player(ppg);
-  vector<game_ptr> game_record;
-  int i;
-  int base_population = tpg * ngames;
-  int game_rounds = 20;
-  int practice_rounds = 3;
-  int nkeep = fmax(0.5 * base_population, 1);
-
   for (int epoch = 1; true; epoch++) {
-    pop->prepare_epoch(epoch);
-    trm->run(pop);
+    pop.prepare_epoch(epoch, ggn);
+    trm.run(pop);
 
     // train on all games and update player scores
     cout << "Arena: epoch " << epoch << ": completed game rounds" << endl;
@@ -94,8 +77,8 @@ void arena<G, T, P>::evolution(int threads, int ngames) {
   }
 }
 
-template <typename G, typename T, typename P>
-void arena<G, T, P>::write_stats(int epoch) const {
+template <typename T, typename P>
+void arena<T, P>::write_stats(int epoch) const {
   // store best brains
   for (i = 0; i < 3 && i < player.size(); i++) {
     ofstream f("brains/p" + to_string(i) + "_r" + to_string(epoch) + ".txt");
