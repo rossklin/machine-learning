@@ -12,6 +12,7 @@ class game {
   int turns_played;
   int max_turns;
   player_table players;
+  hm<int, std::vector<record>> result_buf;
 
   game(player_table pl);
   virtual void initialize();

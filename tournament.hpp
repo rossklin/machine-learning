@@ -4,5 +4,5 @@
 
 class tournament {
  public:
-  virtual void run(population_manager_ptr pm, int epoch) = 0;
+  virtual void run(population_manager_ptr pm, game_generator_ptr gg, int epoch) = 0;
 };

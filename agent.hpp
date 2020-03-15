@@ -2,7 +2,6 @@
 
 #include <memory>
 #include <set>
-#include <sstream>
 #include <string>
 
 #include "choice.hpp"
@@ -31,10 +30,10 @@ class agent : public std::enable_shared_from_this<agent> {
 
   // constructors
   agent();
-  virtual void deserialize(std::stringstream &s);
+  virtual void deserialize(std::string s);
 
   // duplicators
-  virtual agent_ptr clone() const;
+  virtual agent_ptr clone() const = 0;
   virtual agent_ptr mate(agent_ptr p) const;
   virtual agent_ptr mutate() const;
 

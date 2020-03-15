@@ -1,78 +1,62 @@
+#include <algorithm>
+#include <cassert>
 #include <iostream>
 
+#include "agent.hpp"
+#include "game.hpp"
+#include "game_generator.hpp"
+#include "population_manager.hpp"
 #include "random_tournament.hpp"
 
 using namespace std;
 
-void random_tournament::run(population_manager_ptr pm, int epoch) {
+void random_tournament::run(population_manager_ptr pm, game_generator_ptr gg, int epoch) {
   int game_rounds = 10;
   int practice_rounds = 3;
+  float score_update_rate = 0.05;
+  int ppt = gg->ppt;
+  int tpg = gg->nr_of_teams;
+  int ngames = pm->popsize / tpg;  // one agent is used to generate each team
+
+  pm->check_gg(gg);
+
   for (int round = 0; round < game_rounds; round++) {
     // play a number of games, reusing players as needed
     cout << "Arena: epoch " << epoch << " round " << round << (round < practice_rounds ? " (practice)" : "") << ": select players" << endl;
 
     // match players in games
-    player_buf = player;
-    game_record.clear();
+    auto player_buf = pm->pop;
+    random_shuffle(player_buf.begin(), player_buf.end());
+    vector<game_ptr> game_record(ngames);
 
     // agents play vs each other
-    while (player_buf.size()) {
-      vector<agent_ptr> assign_players;
-      int game_idx = game_record.size();
-      assign_players.clear();
-
-      // fill other teams with other players
-      for (int j = 0; j < tpg; j++) {
-        // attempt to select player with proper age
-        if (player_buf.size()) {
-          int idx = rand_int(0, player_buf.size() - 1);
-          agent_ptr b = player_buf[idx];
-          b->assigned_game = game_idx;
-          player_buf.erase(player_buf.begin() + idx);
-          assign_players.push_back(b);
-        } else {
-          assign_players.push_back(base_game->generate_refbot());
-        }
-      }
-
-      inner_player = base_game->make_teams(assign_players);
-      assert(inner_player.size() == ppg);
-      game_record.push_back(base_game->generate_starting_state(inner_player));
+    for (int idx = 0; idx < ngames; idx++) {
+      vector<agent_ptr> assign_players(player_buf.begin() + idx * tpg, player_buf.begin() + (idx + 1) * tpg);
+      for (auto a : assign_players) a->assigned_game = idx;
+      game_record[idx] = gg->generate_starting_state(gg->make_teams(assign_players));
     }
 
     cout << "Arena: epoch " << epoch << " round " << round << ": play games" << endl;
 
 #pragma omp parallel for
-    for (int i = 0; i < game_record.size(); i++) game_record[i]->play();
+    for (int i = 0; i < game_record.size(); i++) game_record[i]->result_buf = game_record[i]->play(epoch);
 
     // train on all games and update player scores
     cout << "Arena: epoch " << epoch << " round " << round << ": start training" << endl;
 
 #pragma omp parallel for
-    for (i = 0; i < player.size(); i++) {
-      agent_ptr p = player[i];
-      if (p->assigned_game > -1) {
-        game_record[p->assigned_game]->train(p->id, -1, p->team);
-      } else {
-        throw runtime_error("A player was not assigned to a game!");
-      }
-    }
-
-    // remove unstable players
-    for (i = 0; i < player.size(); i++) {
-      if (!player[i]->evaluator_stability()) {
-        cout << "Erasing unstable player " << player[i]->id << endl;
-        player.erase(player.begin() + i--);
-      }
+    for (int i = 0; i < pm->popsize; i++) {
+      agent_ptr a = pm->pop[i];
+      a->train(game_record[a->assigned_game]->result_buf[a->id]);
     }
 
     // update scores
-    for (i = 0; i < player.size(); i++) {
-      agent_ptr p = player[i];
+    for (int i = 0; i < pm->pop.size(); i++) {
+      agent_ptr p = pm->pop[i];
       game_ptr g = game_record[p->assigned_game];
 
       // update simple score
-      double a = SCORE_UPDATE_RATE;
+      double a = score_update_rate;
       p->simple_score = a * g->score_simple(p->id) + (1 - a) * p->simple_score;
 
       // force game to select a winner by heuristic if the game was a tie

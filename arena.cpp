@@ -45,20 +45,6 @@ arena<T, P>::arena(game_generator_ptr ggen) : ggn(ggen) {}
 // }
 
 template <typename T, typename P>
-double arena<T, P>::mate_score(agent_ptr parent1, agent_ptr x) const {
-  // x is protected so score is not reliable
-  if (x->was_protected) return 0;
-
-  // direct descendant
-  if (parent1->parents.count(x->id) || x->parents.count(parent1->id)) return 0;
-
-  double different_ancestors = set_symdiff(x->ancestors, parent1->ancestors).size();
-  double common_parents = set_intersect(x->parents, parent1->parents).size();
-
-  return x->score + different_ancestors - common_parents;
-};
-
-template <typename T, typename P>
 void arena<T, P>::evolution(int threads, int ngames) {
 #ifndef DEBUG
   omp_set_num_threads(threads);
@@ -80,7 +66,8 @@ void arena<T, P>::evolution(int threads, int ngames) {
 template <typename T, typename P>
 void arena<T, P>::write_stats(int epoch) const {
   // store best brains
-  for (i = 0; i < 3 && i < player.size(); i++) {
+  auto player = pop->topn(3);
+  for (int i = 0; i < 3 && i < player.size(); i++) {
     ofstream f("brains/p" + to_string(i) + "_r" + to_string(epoch) + ".txt");
     f << player[i]->serialize();
     f.close();
@@ -94,9 +81,9 @@ void arena<T, P>::write_stats(int epoch) const {
   // reference game
   string xmeta;
   for (int j = 0; j < 3; j++) {
-    game_ptr gr = base_game->team_bots_vs(player[0]);
+    game_ptr gr = ggn->team_bots_vs(player[0]);
     gr->enable_output = true;
-    gr->play();
+    gr->play(epoch);
     ofstream fmeta("game.meta.csv", ios::app);
 
     // find opponent to print

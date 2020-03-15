@@ -1,9 +1,13 @@
-#include "game_generator.hpp"
+#include <cassert>
+
 #include "agent.hpp"
 #include "game.hpp"
+#include "game_generator.hpp"
 #include "utility.hpp"
 
 using namespace std;
+
+game_generator::game_generator(int teams, int ppt, agent_f player_generator, agent_f refbot_generator) : nr_of_teams(teams), ppt(ppt), player_generator(player_generator), refbot_generator(refbot_generator) {}
 
 vector<agent_ptr> game_generator::make_teams(vector<agent_ptr> ps) const {
   vector<agent_ptr> buf(nr_of_teams * ppt);
@@ -51,7 +55,7 @@ function<vec()> game_generator::generate_input_sampler() const {
 }
 
 // Let #npar bots play 100 games, select those which pass score limit and then select the best one
-agent_ptr game_generator::prepared_player(function<agent_ptr()> gen, float plim) const {
+agent_ptr game_generator::prepared_player(agent_f gen, float plim) const {
   int npar = 8;
   vector<agent_ptr> buf(npar);
 
@@ -88,7 +92,7 @@ agent_ptr game_generator::prepared_player(function<agent_ptr()> gen, float plim)
 };
 
 // Repeatedly attempt to make prepared players until n have been generated
-vector<agent_ptr> game_generator::prepare_n(function<agent_ptr()> gen, int n, float plim) const {
+vector<agent_ptr> game_generator::prepare_n(agent_f gen, int n, float plim) const {
   vector<agent_ptr> buf(n);
 
   for (int i = 0; i < n; i++) {

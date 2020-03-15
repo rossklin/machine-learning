@@ -57,7 +57,7 @@ std::string agent::serialize() const {
   return eval->serialize();
 }
 
-void agent::deserialize(std::stringstream &s) {
+void agent::deserialize(std::string s) {
   eval->deserialize(s);
 }
 
@@ -65,4 +65,12 @@ choice_ptr agent::select_choice(game_ptr g) {
   auto opts = g->generate_choices(shared_from_this());
   for (auto opt : opts) opt->value_buf = evaluate_choice(g->vectorize_choice(opt, id));
   return csel.select(opts);
+}
+
+float agent::complexity_penalty() const {
+  return eval->complexity_penalty();
+}
+
+string agent::status_report() const {
+  return eval->status_report();
 }

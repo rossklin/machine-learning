@@ -8,6 +8,7 @@
 #include "population_manager.hpp"
 #include "random_tournament.hpp"
 #include "simple_pod_evaluator.hpp"
+#include "tree_evaluator.hpp"
 
 using namespace std;
 

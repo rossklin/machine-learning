@@ -46,36 +46,15 @@ void pod_game::initialize() {
 int pod_choice::vector_dim() { return 4; }
 bool pod_choice::validate() { return true; }
 
-// agent_ptr simple_pod_agent(evaluator_ptr e) {
-//   choice_selector_ptr c(new choice_selector(0));
-//   agent_ptr a(new pod_agent(e, c));
-
-//   a->team = a->id;
-//   a->label = "simple-pod";
-//   return a;
-// }
-
-// agent_ptr rbf_pod_agent() {
-//   agent_ptr a = simple_pod_agent(evaluator_ptr(new rbf_evaluator));
-//   a->label = "rbf-pod";
-//   return a;
-// }
-
-// agent_ptr tree_pod_agent() {
-//   agent_ptr a = simple_pod_agent(evaluator_ptr(new tree_evaluator));
-//   a->label = "tree-pod";
-//   return a;
-// }
-
 pod_game::pod_game(player_table pl) : game(pl) {}
 
-// hm<int, agent_ptr> pod_game::get_typed_agents() {
-//   hm<int, agent_ptr> res;
-//   for (auto x : players) {
-//     res[x.first] = static_pointer_cast<pod_agent>(x.second);
-//   }
-//   return res;
-// }
+hm<int, pod_agent::ptr> pod_game::get_typed_agents() {
+  hm<int, pod_agent::ptr> res;
+  for (auto x : players) {
+    res[x.first] = static_pointer_cast<pod_agent>(x.second);
+  }
+  return res;
+}
 
 record_table pod_game::increment() {
   record_table res;

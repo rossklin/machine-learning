@@ -1,18 +1,28 @@
 CC=g++
 CPPFLAGS=--std=c++17 -O3 -fopenmp
-SOURCES=agent.cpp choice.cpp game_generator.cpp pod_game.cpp pod_game_generator.cpp pure_train.cpp run_arena.cpp simple_pod_evaluator.cpp arena.cpp game.cpp pod_agent.cpp population_manager.cpp random_tournament.cpp run_local.cpp utility.cpp
-BIN = pure_train
+SOURCES=agent.cpp choice.cpp game_generator.cpp pod_game.cpp pod_game_generator.cpp simple_pod_evaluator.cpp arena.cpp game.cpp pod_agent.cpp population_manager.cpp random_tournament.cpp utility.cpp
+BIN1 = pure_train
+BIN2 = run_arena
 BUILD_DIR=./build
 OBJ = $(SOURCES:%.cpp=$(BUILD_DIR)/%.o)
 DEP = $(OBJ:%.o=%.d)
 
-$(BIN) : $(BUILD_DIR)/$(BIN)
+$(BIN1) : $(BUILD_DIR)/$(BIN1)
 
-$(BUILD_DIR)/$(BIN) : $(OBJ)
+$(BUILD_DIR)/$(BIN1) : $(OBJ) $(BIN1).cpp
 	# Create build directories - same structure as sources.
 	mkdir -p $(@D)
 	# Just link all the object files.
 	$(CC) $(CPPFLAGS) $^ -o $@
+
+$(BIN2) : $(BUILD_DIR)/$(BIN2)
+
+$(BUILD_DIR)/$(BIN2) : $(OBJ) $(BIN2).cpp
+	# Create build directories - same structure as sources.
+	mkdir -p $(@D)
+	# Just link all the object files.
+	$(CC) $(CPPFLAGS) $^ -o $@
+
 
 -include $(DEP)
 

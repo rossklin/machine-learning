@@ -7,6 +7,7 @@
 #include "pod_game_generator.hpp"
 #include "population_manager.hpp"
 #include "simple_pod_evaluator.hpp"
+#include "tree_evaluator.hpp"
 #include "utility.hpp"
 
 using namespace std;
