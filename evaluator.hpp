@@ -12,17 +12,16 @@ class evaluator {
   int choice_dim;
 
  public:
-  typedef evaluator_ptr ptr;
   bool stable;
 
-  virtual double evaluate(vec x) = 0;
+  virtual double evaluate(vec x) const = 0;
   virtual void update(vec input, double output, int age) = 0;
-  virtual ptr mate(ptr partner) = 0;
-  virtual ptr mutate() = 0;
-  virtual std::string serialize() = 0;
+  virtual evaluator_ptr mate(evaluator_ptr partner) const = 0;
+  virtual evaluator_ptr mutate() const = 0;
+  virtual std::string serialize() const = 0;
   virtual void deserialize(std::string ss) = 0;
   virtual void initialize(input_sampler sampler, int cdim) = 0;
-  virtual std::string status_report() = 0;
-  virtual ptr clone() = 0;
-  virtual double complexity_penalty() = 0;
+  virtual std::string status_report() const = 0;
+  virtual evaluator_ptr clone() const = 0;
+  virtual double complexity_penalty() const = 0;
 };

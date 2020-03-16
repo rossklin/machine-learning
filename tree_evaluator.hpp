@@ -1,5 +1,7 @@
 #pragma once
 
+#include <iostream>
+
 #include "evaluator.hpp"
 
 class tree_evaluator : public evaluator {
@@ -11,53 +13,52 @@ class tree_evaluator : public evaluator {
   };
 
   struct tree {
+    typedef std::shared_ptr<tree> ptr;
     double w;
     tree_class class_id;
     double const_value;
     int input_index;
     std::string fname;
-    std::vector<std::shared_ptr<tree>> subtree;
+    std::vector<ptr> subtree;
     double resbuf;
     double dwbuf;
     double ssw;
     double ssdw;
 
-    double evaluate(vec x);
+    double evaluate(vec x) const;
     double get_val(vec x);
     void initialize(int dim, int depth);
-    std::shared_ptr<tree>
-    get_subtree(double p_cut);
-    bool emplace_subtree(std::shared_ptr<tree>, double p_put);
-    std::shared_ptr<tree>
-    clone();
+    ptr get_subtree(double p_cut);
+    bool emplace_subtree(ptr, double p_put);
+    ptr clone();
     void update(vec x, double delta, double alpha, bool &stable);  // return SS of dw
     void apply_dw(double scale);                                   // return SS of w
     void scale_weights(double scale);                              // return SS of w
     int count_trees();
     bool descendant_exists(tree *p, int lev = 0);
     bool loop_free(int lev = 0);
-    void mutate(int dim);
-    std::string serialize();
-    void deserialize(std::string s);
+    void mutate(int dim);  // mutate in place
+    std::string serialize() const;
+    void deserialize(std::stringstream &ss);
   };
 
-  static hm<std::string, t_unary> unary_op;
-  static hm<std::string, t_binary> binary_op;
+  static hm<std::string, t_unary> unary_ops();
+  static hm<std::string, t_binary> binary_ops();
 
  public:
-  std::shared_ptr<tree> root;
+  tree::ptr root;
   double learning_rate;
   double weight_limit;
 
   tree_evaluator();
-  double evaluate(vec x);
+  double evaluate(vec x) const;
   void update(vec input, double output, int age);
-  ptr mate(ptr partner);
-  ptr mutate();
-  std::string serialize();
+  evaluator_ptr mate(evaluator_ptr partner) const;
+  evaluator_ptr mutate() const;
+  std::string serialize() const;
   void deserialize(std::string s);
   void initialize(input_sampler sampler, int cdim);
-  std::string status_report();
-  ptr clone();
-  double complexity_penalty();
+  std::string status_report() const;
+  evaluator_ptr clone() const;
+  double complexity_penalty() const;
 };
