@@ -1,23 +1,28 @@
 CC=g++
 CPPFLAGS=--std=c++17 -O3 -fopenmp
-SOURCES=agent.cpp choice.cpp game_generator.cpp pod_game.cpp pod_game_generator.cpp simple_pod_evaluator.cpp arena.cpp game.cpp pod_agent.cpp population_manager.cpp random_tournament.cpp utility.cpp
-BIN1 = pure_train
-BIN2 = run_arena
+SOURCES=agent.cpp choice.cpp game_generator.cpp pod_game.cpp pod_game_generator.cpp evaluator.cpp simple_pod_evaluator.cpp tree_evaluator.cpp arena.cpp game.cpp pod_agent.cpp population_manager.cpp random_tournament.cpp utility.cpp
 BUILD_DIR=./build
 OBJ = $(SOURCES:%.cpp=$(BUILD_DIR)/%.o)
 DEP = $(OBJ:%.o=%.d)
 
-$(BIN1) : $(BUILD_DIR)/$(BIN1)
+# Disable default rules
+.SUFFIXES:
 
-$(BUILD_DIR)/$(BIN1) : $(OBJ) $(BIN1).cpp
+default: pure_train run_arena
+
+pure_train : $(BUILD_DIR)/pure_train
+
+$(BUILD_DIR)/pure_train : $(OBJ) pure_train.cpp
+	echo "Case 1"
 	# Create build directories - same structure as sources.
 	mkdir -p $(@D)
 	# Just link all the object files.
 	$(CC) $(CPPFLAGS) $^ -o $@
 
-$(BIN2) : $(BUILD_DIR)/$(BIN2)
+run_arena : $(BUILD_DIR)/run_arena
 
-$(BUILD_DIR)/$(BIN2) : $(OBJ) $(BIN2).cpp
+$(BUILD_DIR)/run_arena : $(OBJ) run_arena.cpp
+	echo "Case 2"
 	# Create build directories - same structure as sources.
 	mkdir -p $(@D)
 	# Just link all the object files.
@@ -30,6 +35,7 @@ $(BUILD_DIR)/$(BIN2) : $(OBJ) $(BIN2).cpp
 # The potential dependency on header files is covered
 # by calling `-include $(DEP)`.
 $(BUILD_DIR)/%.o : %.cpp
+	echo "Case 3"
 	mkdir -p $(@D)
 	# The -MMD flags additionaly creates a .d file with
 	# the same name as the .o file.
@@ -39,6 +45,6 @@ $(BUILD_DIR)/%.o : %.cpp
 
 clean :
 	# This should remove all generated files.
-	-rm -rf $(BUILD_DIR)/$(BIN) $(OBJ) $(DEP) brains *.csv pod_codingame.cpp
+	-rm -rf $(BUILD_DIR)/{pure_train,run_arena} $(OBJ) $(DEP) brains *.csv pod_codingame.cpp
 	mkdir brains
 

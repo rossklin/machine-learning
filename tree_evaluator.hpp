@@ -1,7 +1,5 @@
 #pragma once
 
-#include <iostream>
-
 #include "evaluator.hpp"
 
 class tree_evaluator : public evaluator {
@@ -25,7 +23,7 @@ class tree_evaluator : public evaluator {
     double ssw;
     double ssdw;
 
-    double evaluate(vec x) const;
+    double evaluate(vec x);
     double get_val(vec x);
     void initialize(int dim, int depth);
     ptr get_subtree(double p_cut);
@@ -49,14 +47,15 @@ class tree_evaluator : public evaluator {
   tree::ptr root;
   double learning_rate;
   double weight_limit;
+  int depth;
 
-  tree_evaluator();
-  double evaluate(vec x) const;
+  tree_evaluator(int depth);
+  double evaluate(vec x);  // modifies resbuf
   void update(vec input, double output, int age);
   evaluator_ptr mate(evaluator_ptr partner) const;
   evaluator_ptr mutate() const;
   std::string serialize() const;
-  void deserialize(std::string s);
+  void deserialize(std::stringstream &ss);
   void initialize(input_sampler sampler, int cdim);
   std::string status_report() const;
   evaluator_ptr clone() const;

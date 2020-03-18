@@ -8,6 +8,9 @@
 using namespace std;
 
 // tree evaluator
+
+tree_evaluator::tree_evaluator(int d) : depth(d), evaluator() {}
+
 hm<string, t_unary> tree_evaluator::unary_ops() {
   static hm<string, t_unary> unary_op;
 
@@ -294,12 +297,12 @@ void tree_evaluator::tree::initialize(int dim, int depth) {
     if (u01() < 0.5) {
       // unary
       class_id = UNARY_TREE;
-      fname = stat::sample_one(hm_keys(unary_op));
+      fname = sample_one(hm_keys(unary_ops()));
       subtree.resize(1);
     } else {
       // binary
       class_id = BINARY_TREE;
-      fname = stat::sample_one(hm_keys(binary_op));
+      fname = sample_one(hm_keys(binary_ops()));
       subtree.resize(2);
     }
   } else if (u01() < 0.5) {
@@ -309,7 +312,7 @@ void tree_evaluator::tree::initialize(int dim, int depth) {
   } else {
     // input parameter
     class_id = INPUT_TREE;
-    input_index = stat::ranked_sample(stat::seq(0, dim - 1), 0.2);
+    input_index = ranked_sample(seq(0, dim - 1), 0.2);
   }
 
   for (auto &t : subtree) {
@@ -318,12 +321,11 @@ void tree_evaluator::tree::initialize(int dim, int depth) {
   }
 }
 
-P(tree_evaluator::tree)
-tree_evaluator::tree::get_subtree(double p_cut) {
+tree_evaluator::tree::ptr tree_evaluator::tree::get_subtree(double p_cut) {
   if (subtree.empty()) return 0;
 
   if (u01() < p_cut) {
-    return stat::sample_one(subtree)->clone();
+    return sample_one(subtree)->clone();
   } else {
     for (auto t : subtree) {
       tree::ptr
@@ -342,8 +344,9 @@ bool tree_evaluator::tree::emplace_subtree(tree::ptr x, double p_put) {
     subtree[idx] = x;
     return true;
   } else {
-    for (auto t : subtree)
+    for (auto t : subtree) {
       if (t->emplace_subtree(x, p_put)) return true;
+    }
     return emplace_subtree(x, p_put);
   }
 }
@@ -377,13 +380,13 @@ void tree_evaluator::tree::update(vec input, double delta, double alpha, bool &s
   if (class_id == BINARY_TREE) {
     double y1 = subtree[0]->resbuf;
     double y2 = subtree[1]->resbuf;
-    double left_deriv = binary_op[fname].dfdx1(y1, y2);
-    double right_deriv = binary_op[fname].dfdx2(y1, y2);
+    double left_deriv = binary_ops()[fname].dfdx1(y1, y2);
+    double right_deriv = binary_ops()[fname].dfdx2(y1, y2);
     subtree[0]->update(input, delta, w * left_deriv * alpha, stable);
     subtree[1]->update(input, delta, w * right_deriv * alpha, stable);
   } else if (class_id == UNARY_TREE) {
     double y = subtree[0]->resbuf;
-    double deriv = unary_op[fname].fprime(y);
+    double deriv = unary_ops()[fname].fprime(y);
     subtree[0]->update(input, delta, w * deriv * alpha, stable);
   }
 
@@ -403,10 +406,8 @@ void tree_evaluator::tree::update(vec input, double delta, double alpha, bool &s
   }
 }
 
-P(evaluator)
-tree_evaluator::clone() {
-  P(tree_evaluator)
-  e = P(tree_evaluator)(new tree_evaluator(*this));
+evaluator_ptr tree_evaluator::clone() const {
+  shared_ptr<tree_evaluator> e(new tree_evaluator(*this));
   e->root = root->clone();
   return e;
 }
@@ -441,18 +442,15 @@ void tree_evaluator::update(vec input, double output, int age) {
   }
 }
 
-P(evaluator)
-tree_evaluator::mate(P(evaluator) partner_buf) {
-  P(tree_evaluator)
-  partner = static_pointer_cast<tree_evaluator>(partner_buf);
-  P(tree_evaluator)
-  child = static_pointer_cast<tree_evaluator>(clone());
+evaluator_ptr tree_evaluator::mate(evaluator_ptr partner_buf) const {
+  shared_ptr<tree_evaluator> partner = static_pointer_cast<tree_evaluator>(partner_buf);
+  shared_ptr<tree_evaluator> child = static_pointer_cast<tree_evaluator>(clone());
   child->learning_rate = fmax(rnorm(0.5, 0.1) * (learning_rate + partner->learning_rate), 1e-5);
   child->weight_limit = fmax(rnorm(0.5, 0.1) * (weight_limit + partner->weight_limit), 1);
 
-  tree::ptr
-      sub = 0;
+  tree::ptr sub = 0;
 
+  // todo: guarantee success
   for (int i = 0; i < 10 && sub == 0; i++) sub = partner->root->get_subtree(0.3);
   if (sub == 0) return 0;
 
@@ -467,18 +465,15 @@ tree_evaluator::mate(P(evaluator) partner_buf) {
   }
 }
 
-P(evaluator)
-tree_evaluator::mutate() {
-  P(tree_evaluator)
-  child = static_pointer_cast<tree_evaluator>(clone());
+evaluator_ptr tree_evaluator::mutate() const {
+  shared_ptr<tree_evaluator> child = static_pointer_cast<tree_evaluator>(clone());
   child->root->mutate(dim);
   if (u01() < 0.1) child->learning_rate = fmax(child->learning_rate + rnorm(0, 0.1), 1e-5);
   if (u01() < 0.1) child->weight_limit = fmax(child->weight_limit * rnorm(1, 0.1), 1);
-  // assert(child->root->loop_free());
   return child;
 }
 
-string tree_evaluator::serialize() {
+string tree_evaluator::serialize() const {
   stringstream ss;
   string sep = " ";
   ss << evaluator::serialize() << sep << learning_rate << sep << weight_limit << sep << root->serialize();
@@ -495,7 +490,7 @@ void tree_evaluator::deserialize(stringstream &ss) {
   return;
 }
 
-void tree_evaluator::initialize(input_sampler sampler, int cdim, int depth) {
+void tree_evaluator::initialize(input_sampler sampler, int cdim) {
   stable = true;
   vec input = sampler();
   dim = input.size();
@@ -506,7 +501,7 @@ void tree_evaluator::initialize(input_sampler sampler, int cdim, int depth) {
   root->initialize(dim, depth);
 }
 
-string tree_evaluator::status_report() {
+string tree_evaluator::status_report() const {
   stringstream ss;
   string sep = ",";
   ss << root->count_trees() << sep << learning_rate;

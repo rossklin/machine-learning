@@ -14,7 +14,8 @@ using namespace std;
 
 agent_ptr agent_gen() {
   agent_ptr a(new pod_agent);
-  a->eval = evaluator_ptr(new tree_evaluator);
+  int depth = 4;
+  a->eval = evaluator_ptr(new tree_evaluator(depth));
   a->label = "tree-pod-agent";
   return a;
 }

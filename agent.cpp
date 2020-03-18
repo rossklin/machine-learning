@@ -1,4 +1,5 @@
 #include <memory>
+#include <sstream>
 
 #include "agent.hpp"
 #include "choice.hpp"
@@ -54,11 +55,13 @@ void agent::initialize_from_input(input_sampler s, int choice_dim) {
 };
 
 std::string agent::serialize() const {
+  // todo: serialize other agent components
   return eval->serialize();
 }
 
 void agent::deserialize(std::string s) {
-  eval->deserialize(s);
+  stringstream ss(s);
+  eval->deserialize(ss);
 }
 
 choice_ptr agent::select_choice(game_ptr g) {

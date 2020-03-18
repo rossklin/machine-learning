@@ -2,6 +2,7 @@
   "files.associations": {
     "*.module": "php",
     "*.inc": "php",
+    "*.install": "php",
     "iostream": "cpp",
     "string": "cpp",
     "set": "cpp",
@@ -49,6 +50,18 @@
     "streambuf": "cpp",
     "typeinfo": "cpp",
     "*.ipp": "cpp",
-    "bitset": "cpp"
+    "bitset": "cpp",
+    "csignal": "cpp",
+    "ctime": "cpp",
+    "strstream": "cpp",
+    "chrono": "cpp",
+    "complex": "cpp",
+    "map": "cpp",
+    "ratio": "cpp",
+    "iomanip": "cpp",
+    "thread": "cpp",
+    "cfenv": "cpp",
+    "cinttypes": "cpp",
+    "typeindex": "cpp"
   }
 }
