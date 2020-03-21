@@ -32,6 +32,7 @@ class pod_game : public game, public std::enable_shared_from_this<pod_game> {
  protected:
   hm<int, double> htable();
   hm<int, double> ttable();
+  double pod_distance_travelled(int pid);
 
   bool did_finish;
   int run_laps;

@@ -49,7 +49,7 @@ void pure_train() {
 
     omp_set_lock(&writelock);
     ofstream fmeta("pure_train.meta.csv", ios::app);
-    string xmeta = g->end_stats();  // todo: get id of other player correctly
+    string xmeta = g->end_stats();
     fmeta << xmeta << endl;
     fmeta.close();
     omp_unset_lock(&writelock);

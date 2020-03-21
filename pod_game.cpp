@@ -172,8 +172,12 @@ record_table pod_game::increment() {
   };
 
   for (auto x : players) {
+    // change in greatest distance travelled in team
     res[x.first].reward_simple = htab_after[x.first] - htab_before[x.first];
+
+    // change in difference in distance travelled between your team and best opponent team
     res[x.first].reward = score(x.first, htab_after) - score(x.first, htab_before);
+
     res[x.first].sum_future_rewards = 0;
   }
 
@@ -224,9 +228,10 @@ double pod_game::winner_reward(int epoch) {
   return 1000;
 }
 
+// simple score should be somewhere around 1
 double pod_game::score_simple(int pid) {
   double standard_speed = 100;
-  return htable()[pid] / turns_played / standard_speed;
+  return pod_distance_travelled(pid) / turns_played / standard_speed;
 }
 
 void pod_game::reset() {
@@ -249,7 +254,7 @@ void pod_game::reset() {
 std::vector<choice_ptr> pod_game::generate_choices(agent_ptr p_base) {
   pod_agent::ptr p = static_pointer_cast<pod_agent>(p_base);
   vector<pod_choice> opts;
-  double thrust_limit = 100 * p->complexity_penalty();
+  double thrust_limit = 100 * (1 - p->complexity_penalty());
 
   pod_choice cx;
   for (double a = -angular_speed; a <= angular_speed; a += angular_speed / 3) {
@@ -340,17 +345,10 @@ vec pod_game::vectorize_choice(choice_ptr c_base, int pid) {
 
 // protected members
 
-// table of heuristic score for all players
-hm<int, double> pod_game::htable() {
-  hm<int, double> ttab, htab;
-  ttab = ttable();
-  for (auto p : players) htab[p.first] = ttab[p.second->team];
-  return htab;
-}
+double pod_game::pod_distance_travelled(int pid) {
+  pod_data p = get_typed_agents().at(pid)->data;
+  hm<int, double> dtab;
 
-// table of heuristic score for all teams
-hm<int, double> pod_game::ttable() {
-  hm<int, double> x, dtab, ttab;
   double dsum = 0;
   int ncheck = checkpoint.size();
   for (int i = 0; i < ncheck; i++) {
@@ -358,19 +356,30 @@ hm<int, double> pod_game::ttable() {
     dsum += dtab[i];
   }
 
-  auto podval = [this, dsum, dtab](pod_data p) -> double {
-    double travel = dsum * p.lap;
-    for (int i = 0; i <= p.passed_checkpoint; i++) travel += dtab.at(i);
-    travel -= distance(p.x, get_checkpoint(p.passed_checkpoint + 1));
-    assert(isfinite(travel));
-    return travel;
-  };
+  double travel = dsum * p.lap;
+  for (int i = 0; i <= p.passed_checkpoint; i++) travel += dtab.at(i);
+  travel -= distance(p.x, get_checkpoint(p.passed_checkpoint + 1));
+  assert(isfinite(travel));
 
-  // player score = team score
+  return travel;
+}
+
+// table of heuristic score for all teams
+hm<int, double> pod_game::ttable() {
+  hm<int, double> ttab;
+
   for (auto p : players) ttab[p.second->team] = -INFINITY;
-  for (auto p : get_typed_agents()) ttab[p.second->team] = fmax(ttab[p.second->team], podval(p.second->data));
+  for (auto p : get_typed_agents()) ttab[p.second->team] = fmax(ttab[p.second->team], pod_distance_travelled(p.first));
 
   return ttab;
+}
+
+// table of heuristic score for all players
+hm<int, double> pod_game::htable() {
+  hm<int, double> ttab, htab;
+  ttab = ttable();
+  for (auto p : players) htab[p.first] = ttab[p.second->team];
+  return htab;
 }
 
 point pod_game::get_checkpoint(int idx) { return checkpoint[modulo(idx, (int)checkpoint.size())]; }

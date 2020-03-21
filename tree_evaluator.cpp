@@ -116,7 +116,7 @@ hm<string, t_binary> tree_evaluator::binary_ops() {
 
 double tree_evaluator::complexity_penalty() const {
   int n = root->count_trees();
-  return kernel(n, 1000);
+  return 1 - kernel(n, 1000);
 }
 
 // todo
@@ -400,7 +400,8 @@ void tree_evaluator::tree::update(vec input, double delta, double alpha, bool &s
   ssw += pow(w, 2);
 
   if (fabs(dydw) > 1e-6 && isfinite(dydw)) {
-    ssdw += pow(dwbuf = delta / dydw, 2);
+    dwbuf = delta / dydw;
+    ssdw += pow(dwbuf, 2);
   } else {
     dwbuf = 0;
   }
