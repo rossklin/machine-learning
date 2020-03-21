@@ -45,7 +45,7 @@ class pod_game : public game, public std::enable_shared_from_this<pod_game> {
   void initialize();
   record_table increment();
   bool finished();
-  std::string end_stats(int pid, int pid2);
+  std::string end_stats();
   int select_winner();
   double score_simple(int pid);
   void reset();

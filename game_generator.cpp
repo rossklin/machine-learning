@@ -43,8 +43,11 @@ int game_generator::choice_dim() const {
 }
 
 function<vec()> game_generator::generate_input_sampler() const {
+  cout << "Generate input sampler: start" << endl;
   game_ptr g = team_bots_vs(refbot_generator());
+  cout << "Generate input sampler: play sample game" << endl;
   auto buf = g->play(0);
+  cout << "Generate input sampler: complete" << endl;
 
   return [buf]() -> vec {
     vector<int> keys = hm_keys(buf);

@@ -61,15 +61,18 @@ double time_discount(double x, double t) {
   return x * exp(-t / 4);
 }
 
-default_random_engine get_random_engine() {
-  static default_random_engine random_generator(time(NULL));
-  return random_generator;
+mt19937 &get_random_engine() {
+  // static default_random_engine random_generator(time(NULL));
+  static random_device rd;   //Will be used to obtain a seed for the random number engine
+  static mt19937 gen(rd());  //Standard mersenne_twister_engine seeded with rd()
+  return gen;
 }
 
 double u01(double a, double b) {
   uniform_real_distribution<double> distribution(a, b);
-  auto generator = bind(distribution, get_random_engine());
-  return generator();
+  mt19937 &gen = get_random_engine();
+  double test = distribution(gen);
+  return test;
 }
 
 double rnorm(double m, double s) {

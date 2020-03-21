@@ -28,22 +28,28 @@ agent_ptr refbot_gen() {
 }
 
 void pure_train() {
+  cout << "Pure train: start" << endl;
+
   pod_game_generator ggen(2, 1, agent_gen, refbot_gen);
   agent_ptr a = agent_gen();
+  a->initialize_from_input(ggen.generate_input_sampler(), ggen.choice_dim());
 
   omp_lock_t writelock;
   omp_init_lock(&writelock);
 
   for (int epoch = 1; true; epoch++) {
+    cout << "Pure train: epoch " << epoch << endl;
     a->set_exploration_rate(0.7 - 0.6 * atan(epoch / (float)40) / (M_PI / 2));
     game_ptr g = ggen.team_bots_vs(a);
+    cout << "Generated game" << endl;
     auto res = g->play(epoch);
-    a->train(res.at(a->id));
+    cout << "Played game" << endl;
+    for (auto pid : g->team_pids(a->team)) a->train(res.at(pid));
     a->age++;
 
     omp_set_lock(&writelock);
     ofstream fmeta("pure_train.meta.csv", ios::app);
-    string xmeta = g->end_stats(a->id, hm_keys(g->players).back());  // todo: get id of other player correctly
+    string xmeta = g->end_stats();  // todo: get id of other player correctly
     fmeta << xmeta << endl;
     fmeta.close();
     omp_unset_lock(&writelock);

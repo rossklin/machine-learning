@@ -1,3 +1,4 @@
+#include <iostream>
 #include <memory>
 #include <sstream>
 
@@ -15,14 +16,16 @@ agent::agent() : csel(0.2) {
 }
 
 void agent::train(vector<record> results) {
+  cout << "agent::train: start" << endl;
   int n = results.size();
-  double gamma = 0.95;
+  double gamma = 1;
 
   for (int i = n - 2; i >= 0; i--) {
     float r = results[i].reward;
     results[i].sum_future_rewards = r + gamma * results[i + 1].sum_future_rewards;
   }
 
+  cout << "agent::train: update" << endl;
   for (auto y : results) eval->update(y.input, y.sum_future_rewards, age);
 }
 

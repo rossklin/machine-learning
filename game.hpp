@@ -21,7 +21,7 @@ class game {
   virtual double winner_reward(int epoch) = 0;
   virtual record_table increment() = 0;
   virtual bool finished() = 0;
-  virtual std::string end_stats(int pid, int pid2) = 0;
+  virtual std::string end_stats() = 0;
   virtual int select_winner() = 0;
   virtual double score_simple(int pid) = 0;
   virtual std::vector<choice_ptr> generate_choices(agent_ptr a) = 0;
@@ -29,4 +29,5 @@ class game {
 
   hm<int, std::vector<record>> play(int epoch);
   choice_ptr select_choice(agent_ptr a);
+  std::vector<int> team_pids(int tid) const;
 };

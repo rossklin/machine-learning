@@ -1,5 +1,5 @@
 CC=g++
-CPPFLAGS=--std=c++17 -O3 -fopenmp
+CPPFLAGS=--std=c++17 -ggdb -fopenmp
 SOURCES=agent.cpp choice.cpp game_generator.cpp pod_game.cpp pod_game_generator.cpp evaluator.cpp simple_pod_evaluator.cpp tree_evaluator.cpp arena.cpp game.cpp pod_agent.cpp population_manager.cpp random_tournament.cpp utility.cpp
 BUILD_DIR=./build
 OBJ = $(SOURCES:%.cpp=$(BUILD_DIR)/%.o)
@@ -10,7 +10,7 @@ DEP = $(OBJ:%.o=%.d)
 
 default: pure_train run_arena
 
-pure_train : $(BUILD_DIR)/pure_train
+pure_train : $(BUILD_DIR)/pure_train pure_train.cpp
 
 $(BUILD_DIR)/pure_train : $(OBJ) pure_train.cpp
 	echo "Case 1"

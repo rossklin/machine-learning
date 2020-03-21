@@ -1,5 +1,6 @@
 #include <cassert>
 #include <functional>
+#include <iostream>
 #include <memory>
 #include <vector>
 
@@ -21,14 +22,23 @@ void game::initialize() {
 hm<int, vector<record>> game::play(int epoch) {
   hm<int, vector<record>> res;
 
+  cout << "game::play: players: ";
+  for (auto x : players) {
+    cout << x.first << " (" << x.second->id << "), ";
+  }
+  cout << endl;
+
   for (turns_played = 0; turns_played < max_turns && !finished(); turns_played++) {
     record_table rect = increment();
     for (auto x : rect) res[x.first].push_back(x.second);
   }
 
-  // add reward for winning
+  // add reward for winning team
   if (winner > -1) {
-    res[winner].back().reward += winner_reward(epoch);
+    float reward = winner_reward(epoch);
+    for (auto x : players) {
+      if (x.second->team == winner) res[x.first].back().reward += reward;
+    }
   }
 
   return res;
@@ -37,4 +47,12 @@ hm<int, vector<record>> game::play(int epoch) {
 void game::reset() {
   turns_played = 0;
   winner = -1;
+}
+
+vector<int> game::team_pids(int tid) const {
+  vector<int> res;
+  for (auto x : players) {
+    if (x.second->team == tid) res.push_back(x.first);
+  }
+  return res;
 }

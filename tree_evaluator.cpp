@@ -436,9 +436,16 @@ void tree_evaluator::update(vec input, double output, int age) {
 
   // scale down weights if too large
   wlen = sqrt(root->ssw);
+  double new_output = evaluate(input);
+  cout << "tree_evaluator::update: " << current << " -> " << new_output << "; " << output << endl;
+
   if (wlen > weight_limit) {
+    cout << " -> downscale weights" << endl;
     root->scale_weights(weight_limit / wlen);
     assert(sqrt(root->ssw) <= 1.1 * weight_limit);
+
+    new_output = evaluate(input);
+    cout << " -> new result: " << current << " -> " << new_output << "; " << output << endl;
   }
 }
 
@@ -491,14 +498,16 @@ void tree_evaluator::deserialize(stringstream &ss) {
 }
 
 void tree_evaluator::initialize(input_sampler sampler, int cdim) {
+  cout << "tree_evaluator::initialize: start" << endl;
   stable = true;
-  vec input = sampler();
-  dim = input.size();
+  dim = cdim;
   learning_rate = fabs(rnorm(0, 0.2));
   weight_limit = u01(1, 10000);
 
   root = tree::ptr(new tree);
   root->initialize(dim, depth);
+
+  cout << "tree_evaluator::initialize: complete with size " << root->count_trees() << endl;
 }
 
 string tree_evaluator::status_report() const {

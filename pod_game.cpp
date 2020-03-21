@@ -41,6 +41,7 @@ void pod_game::initialize() {
   };
 
   for (auto x : get_typed_agents()) x.second->data = gen_pod();
+  cout << "pod_game: initialized for " << players.size() << " players with " << checkpoint.size() << " checkpoints" << endl;
 }
 
 int pod_choice::vector_dim() { return 4; }
@@ -57,6 +58,8 @@ hm<int, pod_agent::ptr> pod_game::get_typed_agents() {
 }
 
 record_table pod_game::increment() {
+  cout << "pod_game: increment: start" << endl;
+
   record_table res;
   hm<int, double> htab_before = htable();
   auto agents = get_typed_agents();
@@ -73,6 +76,8 @@ record_table pod_game::increment() {
     res[pid].input = vectorize_choice(c, pid);
     res[pid].output = p->evaluate_choice(res[x.first].input);
 
+    cout << "player " << x.first << ": choice: " << c->thrust << ", " << c->angle << ", " << c->boost << ", " << c->shield << endl;
+
     p->data.a += fmin(angular_speed, abs(c->angle)) * signum(c->angle);
 
     if (p->data.shield_active) {
@@ -87,11 +92,17 @@ record_table pod_game::increment() {
       p->data.v = p->data.v + c->thrust * normv(p->data.a);
     }
 
+    // todo: refbot seems to be chosing 0 thrust
+    // todo: train on refbot data?
+    cout << x.first << " moves from " << p->data.x.x << "x" << p->data.x.y;
+
     p->data.x = p->data.x + p->data.v;
     // todo: collision here?
     p->data.v = friction * p->data.v;
     p->data.v = truncate_point(p->data.v);
     p->data.x = truncate_point(p->data.x);
+
+    cout << " to " << p->data.x.x << "x" << p->data.x.y << ": score " << htable()[p->id] << " (" << score_simple(p->id) << ")" << endl;
   }
 
   // check collisions
@@ -178,6 +189,8 @@ record_table pod_game::increment() {
     f.close();
   }
 
+  cout << "pod_game: increment: end" << endl;
+
   return res;
 }
 
@@ -185,10 +198,12 @@ bool pod_game::finished() {
   return did_finish;
 }
 
-std::string pod_game::end_stats(int pid, int pid2) {
+std::string pod_game::end_stats() {
   auto h = htable();
   string sep = ",";
   stringstream ss;
+  int pid = team_pids(0).front();
+  int pid2 = team_pids(1).front();
 
   ss << pid << sep << players[pid]->label << sep << players[pid]->age << sep << players[pid]->score << sep << players[pid]->ancestors.size() << sep << players[pid]->parents.size() << sep << (h[pid] / h[pid2]) << sep << (h[pid] / turns_played) << sep << players[pid]->status_report();
 
