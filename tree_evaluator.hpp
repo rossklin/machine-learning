@@ -4,10 +4,11 @@
 
 class tree_evaluator : public evaluator {
   enum tree_class {
-    UNARY_TREE,
-    BINARY_TREE,
-    CONSTANT_TREE,
-    INPUT_TREE
+    UNARY_TREE,     // 0
+    BINARY_TREE,    // 1
+    CONSTANT_TREE,  // 2
+    INPUT_TREE,     // 3
+    WEIGHT_TREE     // 4
   };
 
   struct tree {
@@ -23,15 +24,14 @@ class tree_evaluator : public evaluator {
     double ssw;
     double ssdw;
 
-    double evaluate(vec x);
-    double get_val(vec x);
+    double evaluate(const vec &x);
     void initialize(int dim, int depth);
     ptr get_subtree(double p_cut);
     bool emplace_subtree(ptr, double p_put);
     ptr clone();
-    void update(vec x, double delta, double alpha, bool &stable);  // return SS of dw
-    void apply_dw(double scale);                                   // return SS of w
-    void scale_weights(double scale);                              // return SS of w
+    void calculate_dw(double delta, double alpha, bool &stable);  // return SS of dw
+    void apply_dw(double scale);                                  // return SS of w
+    void scale_weights(double scale);                             // return SS of w
     int count_trees();
     bool descendant_exists(tree *p, int lev = 0);
     bool loop_free(int lev = 0);
@@ -57,6 +57,7 @@ class tree_evaluator : public evaluator {
   std::string serialize() const;
   void deserialize(std::stringstream &ss);
   void initialize(input_sampler sampler, int cdim);
+  void example_setup(int cdim);
   std::string status_report() const;
   evaluator_ptr clone() const;
   double complexity_penalty() const;

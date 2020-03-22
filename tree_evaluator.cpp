@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <sstream>
@@ -5,9 +6,12 @@
 #include "tree_evaluator.hpp"
 #include "utility.hpp"
 
+#define VERBOSE false
+
 using namespace std;
 
 // tree evaluator
+const int max_weighted_subtrees = 10;
 
 tree_evaluator::tree_evaluator(int d) : depth(d), evaluator() {}
 
@@ -32,8 +36,6 @@ hm<string, t_unary> tree_evaluator::unary_ops() {
 
     unary_op["abs"].f = [](double x) { return fabs(x); };
     unary_op["abs"].fprime = [](double x) { return (x > 0) - (x < 0); };
-    unary_op["signum"].f = [](double x) { return (x > 0) - (x < 0); };
-    unary_op["signum"].fprime = [](double x) { return 0; };
   }
 
   return unary_op;
@@ -66,10 +68,6 @@ hm<string, t_binary> tree_evaluator::binary_ops() {
         return 0;
       }
     };
-
-    binary_op["plus"].f = [](double a, double b) { return a + b; };
-    binary_op["plus"].dfdx1 = [](double a, double b) { return 1; };
-    binary_op["plus"].dfdx2 = [](double a, double b) { return 1; };
 
     binary_op["product"].f = [](double a, double b) { return a * b; };
     binary_op["product"].dfdx1 = [](double a, double b) { return b; };
@@ -131,6 +129,7 @@ void tree_evaluator::tree::deserialize(stringstream &ss) {
   }
 
   int cid;
+  int numsub;
   ss >> w >> cid;
   class_id = (tree_class)cid;
 
@@ -138,6 +137,9 @@ void tree_evaluator::tree::deserialize(stringstream &ss) {
     ss >> const_value;
   } else if (class_id == INPUT_TREE) {
     ss >> input_index;
+  } else if (class_id == WEIGHT_TREE) {
+    ss >> numsub;
+    assert(numsub > 0 && numsub <= max_weighted_subtrees);
   } else {
     ss >> fname;
   }
@@ -147,6 +149,8 @@ void tree_evaluator::tree::deserialize(stringstream &ss) {
     subtree.resize(1);
   } else if (class_id == BINARY_TREE) {
     subtree.resize(2);
+  } else if (class_id == WEIGHT_TREE) {
+    subtree.resize(numsub);
   } else {
     subtree.clear();
   }
@@ -199,7 +203,7 @@ void tree_evaluator::tree::mutate(int dim) {
 
       if (u01() < 0.5) {
         class_id = CONSTANT_TREE;
-        const_value = resbuf + rnorm(0, 0.1);
+        const_value = resbuf / w + rnorm(0, 0.1);
       } else {
         class_id = INPUT_TREE;
         input_index = rand_int(0, dim - 1);
@@ -266,7 +270,7 @@ tree_evaluator::tree::ptr tree_evaluator::tree::clone() {
   return t;
 }
 
-double tree_evaluator::tree::get_val(vec x) {
+double tree_evaluator::tree::evaluate(const vec &x) {
   double val;
 
   if (class_id == CONSTANT_TREE) {
@@ -277,15 +281,14 @@ double tree_evaluator::tree::get_val(vec x) {
     val = unary_ops()[fname].f(subtree[0]->evaluate(x));
   } else if (class_id == BINARY_TREE) {
     val = binary_ops()[fname].f(subtree[0]->evaluate(x), subtree[1]->evaluate(x));
+  } else if (class_id == WEIGHT_TREE) {
+    val = 0;
+    for (auto a : subtree) val += a->evaluate(x);
   } else {
     throw runtime_error("Invalid tree class id!");
   }
 
-  return resbuf = val;
-}
-
-double tree_evaluator::tree::evaluate(vec x) {
-  return w * get_val(x);
+  return resbuf = w * val;
 }
 
 void tree_evaluator::tree::initialize(int dim, int depth) {
@@ -295,6 +298,10 @@ void tree_evaluator::tree::initialize(int dim, int depth) {
 
   if (depth > 0 && u01() < (1 - p_cut)) {
     if (u01() < 0.5) {
+      // weight
+      class_id = WEIGHT_TREE;
+      subtree.resize(rand_int(2, max_weighted_subtrees));
+    } else if (u01() < 0.5) {
       // unary
       class_id = UNARY_TREE;
       fname = sample_one(hm_keys(unary_ops()));
@@ -351,13 +358,18 @@ bool tree_evaluator::tree::emplace_subtree(tree::ptr x, double p_put) {
   }
 }
 
-void tree_evaluator::tree::apply_dw(double rescale) {
-  w += dwbuf * rescale;
+void tree_evaluator::tree::apply_dw(double scale) {
+#if VERBOSE
+  // debug
+  cout << "Node class " << class_id << ": apply dw: resbuf = " << resbuf << ", dwbuf = " << dwbuf << " :: w from " << w << " to " << (w - dwbuf * scale) << endl;
+#endif
+
+  w += -dwbuf * scale;  // basic gradient descent
   assert(isfinite(w));
 
   ssw = pow(w, 2);
   for (auto t : subtree) {
-    t->apply_dw(rescale);
+    t->apply_dw(scale);
     ssw += t->ssw;
   }
 }
@@ -372,39 +384,41 @@ void tree_evaluator::tree::scale_weights(double rescale) {
   }
 }
 
-void tree_evaluator::tree::update(vec input, double delta, double alpha, bool &stable) {
+void tree_evaluator::tree::calculate_dw(double delta, double alpha, bool &stable) {
   ssw = 0;
   ssdw = 0;
-  assert(isfinite(delta));
 
   if (class_id == BINARY_TREE) {
     double y1 = subtree[0]->resbuf;
     double y2 = subtree[1]->resbuf;
     double left_deriv = binary_ops()[fname].dfdx1(y1, y2);
     double right_deriv = binary_ops()[fname].dfdx2(y1, y2);
-    subtree[0]->update(input, delta, w * left_deriv * alpha, stable);
-    subtree[1]->update(input, delta, w * right_deriv * alpha, stable);
+    subtree[0]->calculate_dw(delta, w * left_deriv * alpha, stable);
+    subtree[1]->calculate_dw(delta, w * right_deriv * alpha, stable);
   } else if (class_id == UNARY_TREE) {
     double y = subtree[0]->resbuf;
     double deriv = unary_ops()[fname].fprime(y);
-    subtree[0]->update(input, delta, w * deriv * alpha, stable);
+    subtree[0]->calculate_dw(delta, w * deriv * alpha, stable);
+  } else if (class_id == WEIGHT_TREE) {
+    for (auto a : subtree) {
+      a->calculate_dw(delta, w * alpha, stable);
+    }
   }
 
-  double dydw = alpha * resbuf;
-  if (!isfinite(dydw)) stable = false;
+  double dydw = alpha * resbuf / w;
+  if (!isfinite(dydw)) {
+    stable = false;
+    return;
+  }
 
   for (auto t : subtree) {
     ssw += t->ssw;
     ssdw += t->ssdw;
   }
-  ssw += pow(w, 2);
 
-  if (fabs(dydw) > 1e-6 && isfinite(dydw)) {
-    dwbuf = delta / dydw;
-    ssdw += pow(dwbuf, 2);
-  } else {
-    dwbuf = 0;
-  }
+  dwbuf = -2 * delta * dydw;  // dG/dw = -2 delta dy/dw, G = delta²
+  ssw += pow(w, 2);
+  ssdw += pow(dwbuf, 2);
 }
 
 evaluator_ptr tree_evaluator::clone() const {
@@ -418,35 +432,47 @@ double tree_evaluator::evaluate(vec x) {
 }
 
 void tree_evaluator::update(vec input, double output, int age) {
+#if VERBOSE
+  // debug
+  vec printbuf(input.begin(), input.begin() + 5);
+  cout << "Update: input = [" << printbuf << "]" << endl;
+#endif
+
   double current = evaluate(input);
+  double delta = output - current;
 
   // compute weight increments
-  root->update(input, output - current, 1, stable);
+  root->calculate_dw(delta, 1, stable);
 
   double wlen = sqrt(root->ssw);
   double dwlen = sqrt(root->ssdw);
-  double time_scale = 1 / (log(age + 1) + 1);
-  double rate = learning_rate * time_scale;
-  double limit = 0.01 * time_scale;
+  if (dwlen == 0) return;
 
-  if (rate * dwlen > limit * wlen) {
-    rate = limit * wlen / dwlen;
+  double time_scale = 1 / (log(age + 1) + 1);
+  double step = learning_rate * time_scale;  // preferred step is size of gradient
+  double limit = 0.001 * time_scale;         // don't allow stepping more than 1% of weight vector length
+
+  if (step * dwlen > limit * wlen) {
+    step = limit * wlen / dwlen;
   }
 
-  root->apply_dw(rate);
+  root->apply_dw(step);
 
   // scale down weights if too large
   wlen = sqrt(root->ssw);
   double new_output = evaluate(input);
-  cout << "tree_evaluator::update: " << current << " -> " << new_output << "; " << output << endl;
+
+#if VERBOSE
+  cout << "Update complete, output from " << current << " to " << new_output << " by " << (new_output - current) << ", target = " << output << endl;
+#endif
 
   if (wlen > weight_limit) {
-    cout << " -> downscale weights" << endl;
+#if VERBOSE
+    cout << "Limiting weights" << endl;
+#endif
+
     root->scale_weights(weight_limit / wlen);
     assert(sqrt(root->ssw) <= 1.1 * weight_limit);
-
-    new_output = evaluate(input);
-    cout << " -> new result: " << current << " -> " << new_output << "; " << output << endl;
   }
 }
 
@@ -498,16 +524,113 @@ void tree_evaluator::deserialize(stringstream &ss) {
   return;
 }
 
-void tree_evaluator::initialize(input_sampler sampler, int cdim) {
-  cout << "tree_evaluator::initialize: start" << endl;
+void tree_evaluator::example_setup(int cdim) {
   stable = true;
   dim = cdim;
-  learning_rate = fabs(rnorm(0, 0.2));
+  learning_rate = fabs(rnorm(0, 0.1));
+  weight_limit = u01(1, 10000);
+
+  root = tree::ptr(new tree);
+  // temporarily disabled for debug
+  // root->initialize(dim, depth);
+
+  // debug: fixed tree definition
+  root->w = 1;
+  root->class_id = BINARY_TREE;
+  root->subtree.resize(2);
+  root->fname = "product";
+
+  tree::ptr K(new tree);
+  K->w = 1;
+  K->class_id = BINARY_TREE;
+  K->fname = "kernel";
+  K->subtree.resize(2);
+
+  tree::ptr W(new tree);
+  W->w = 1;
+  W->class_id = WEIGHT_TREE;
+  W->subtree.resize(2);
+
+  tree::ptr SK1(new tree);
+  tree::ptr SK2(new tree);
+
+  SK2->class_id = UNARY_TREE;
+
+  SK1->class_id = UNARY_TREE;
+  SK1->w = 1;
+  SK1->fname = "sigmoid";
+  SK1->subtree.resize(1);
+
+  SK2->class_id = UNARY_TREE;
+  SK2->w = -1;
+  SK2->fname = "sigmoid";
+  SK2->subtree.resize(1);
+
+  W->subtree[0] = SK1;
+  W->subtree[1] = SK2;
+
+  tree::ptr I1(new tree);
+  I1->class_id = INPUT_TREE;
+  I1->w = 1;
+  I1->input_index = 0;
+
+  SK1->subtree[0] = I1;
+
+  tree::ptr I2(new tree);
+  I2->class_id = INPUT_TREE;
+  I2->w = 1;
+  I2->input_index = 4;
+
+  SK2->subtree[0] = I2;
+
+  tree::ptr C1(new tree);
+  C1->w = 1;
+  C1->class_id = CONSTANT_TREE;
+  C1->const_value = 0.2;
+
+  K->subtree[0] = W;
+  K->subtree[1] = C1;
+
+  tree::ptr S(new tree);
+  S->w = 1;
+  S->class_id = UNARY_TREE;
+  S->fname = "sigmoid";
+  S->subtree.resize(1);
+
+  tree::ptr W2(new tree);
+  W2->w = 0.02;
+  W2->class_id = WEIGHT_TREE;
+  W2->subtree.resize(2);
+
+  tree::ptr I3(new tree);
+  I3->w = 1;
+  I3->class_id = INPUT_TREE;
+  I3->input_index = 1;
+
+  tree::ptr C2(new tree);
+  C2->w = -1;
+  C2->class_id = CONSTANT_TREE;
+  C2->const_value = 50;
+
+  W2->subtree[0] = I3;
+  W2->subtree[1] = C2;
+
+  S->subtree[0] = W2;
+
+  root->subtree[0] = K;
+  root->subtree[1] = S;
+
+  cout << "tree_evaluator::example_setup: complete with size " << root->count_trees() << endl;
+}
+
+void tree_evaluator::initialize(input_sampler sampler, int cdim) {
+  stable = true;
+  dim = cdim;
+  learning_rate = fabs(rnorm(0, 0.1));
   weight_limit = u01(1, 10000);
 
   root = tree::ptr(new tree);
   root->initialize(dim, depth);
-
   cout << "tree_evaluator::initialize: complete with size " << root->count_trees() << endl;
 }
 

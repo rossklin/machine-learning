@@ -54,8 +54,11 @@ ggplot(df.population %>% filter(epoch == max(epoch)), aes(x = rank, y = treesize
 ggplot(df.population %>% filter(epoch == max(epoch)), aes(x = rank, y = nancestors)) + geom_bin2d()
 
 ## pure train stats
-df.pure <- setNames(read.csv("pure_train.meta.csv", header=F), c("pid", "label", "age", "score", "nancestors", "nparents", "relative", "speed", "treesize", "lrate")) %>%
-    mutate(epoch = floor(row_number() / 100))
+df.pure <- setNames(read.csv("pure_train.meta.csv", header=F), c("epoch", "pid", "label", "age", "score", "nancestors", "nparents", "relative", "speed", "treesize", "lrate"))
+
+## ggplot(df.pure, aes(x = epoch, y = speed)) + geom_point() + geom_smooth();
+
+## ggplot(df.pure, aes(x = epoch, y = relative)) + geom_point() + geom_smooth();
 
 rank.stat <- function(speed, epoch) {
     m <- lm(speed~epoch)
@@ -63,17 +66,21 @@ rank.stat <- function(speed, epoch) {
 }
 
 prog <- df.pure %>%
+    filter(epoch > max(epoch) - 100) %>%
     group_by(pid) %>%
     summarize(prog = rank.stat(speed, epoch)) %>%
     arrange(-prog) %>%
-    mutate(rank = row_number())
+    mutate(
+        rank = row_number(),
+        rank = as.numeric(rank < 4) * rank
+    )
 
 df.pure <- df.pure %>%
     left_join(prog, by = "pid")
 
-ggplot(df.pure, aes(x = epoch, y = speed, color = as.character((rank < 4) * rank))) + geom_point(alpha=0.3) + geom_smooth()
+ggplot(df.pure, aes(x = epoch, y = speed, color = as.character(rank))) + geom_point(alpha=0.3) + geom_smooth()
 
-ggplot(df.pure, aes(x = epoch, y = relative, color = as.character((rank < 4) * rank))) + geom_point(alpha=0.3) + geom_smooth() + ylim(c(0, 2))
+ggplot(df.pure, aes(x = epoch, y = relative, color = as.character(rank))) + geom_point(alpha=0.3) + geom_smooth() + ylim(c(0, 2))
 
 df.pure %>%
     mutate(era = floor(epoch / 50) + 1) %>%

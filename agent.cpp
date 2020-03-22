@@ -6,6 +6,7 @@
 #include "choice.hpp"
 #include "evaluator.hpp"
 #include "game.hpp"
+#include "utility.hpp"
 
 using namespace std;
 
@@ -26,7 +27,23 @@ void agent::train(vector<record> results) {
   }
 
   cout << "agent::train: update" << endl;
-  for (auto y : results) eval->update(y.input, y.sum_future_rewards, age);
+  int num_correct = 0, num_zero = 0, num_bad = 0;
+  for (auto y : results) {
+    double target = y.sum_future_rewards;
+    double old_output = eval->evaluate(y.input);
+
+    eval->update(y.input, target, age);
+
+    double new_output = eval->evaluate(y.input);
+    double change = new_output - old_output;
+    double desired_change = target - old_output;
+
+    num_correct += signum(change) == signum(desired_change);
+    num_bad += signum(change) && signum(change) != signum(desired_change);
+    num_zero += signum(change) == 0;
+  }
+
+  cout << "stats: " << num_correct << ", " << num_bad << ", " << num_zero << endl;
 }
 
 bool agent::evaluator_stability() const {

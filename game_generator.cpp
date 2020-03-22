@@ -7,7 +7,7 @@
 
 using namespace std;
 
-game_generator::game_generator(int teams, int ppt, agent_f player_generator, agent_f refbot_generator) : nr_of_teams(teams), ppt(ppt), player_generator(player_generator), refbot_generator(refbot_generator) {}
+game_generator::game_generator(int teams, int ppt, agent_f refbot_generator) : nr_of_teams(teams), ppt(ppt), refbot_generator(refbot_generator) {}
 
 vector<agent_ptr> game_generator::make_teams(vector<agent_ptr> ps) const {
   vector<agent_ptr> buf(nr_of_teams * ppt);

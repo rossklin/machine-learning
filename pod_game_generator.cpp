@@ -3,7 +3,7 @@
 
 using namespace std;
 
-pod_game_generator::pod_game_generator(int teams, int ppt, agent_f player_generator, agent_f refbot_generator) : game_generator(teams, ppt, player_generator, refbot_generator) {}
+pod_game_generator::pod_game_generator(int teams, int ppt, agent_f refbot_generator) : game_generator(teams, ppt, refbot_generator) {}
 
 game_ptr pod_game_generator::generate_starting_state(std::vector<agent_ptr> p) const {
   player_table pl;
