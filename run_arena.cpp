@@ -21,10 +21,10 @@ agent_ptr refbot_gen() {
 
 int main(int argc, char **argv) {
   int threads = 6;
-  int ngames = 64;
+  int ngames = 16;
   int ppt = 2;
   int tpg = 2;
-  int tree_depth = 8;
+  int tree_depth = 5;
   float preplim = 0.5;
 
   for (int i = 1; i < argc; i++) {

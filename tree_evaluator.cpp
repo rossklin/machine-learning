@@ -224,7 +224,11 @@ void tree_evaluator::tree::mutate(int dim) {
   } else {
     if (u01() < p_grow) {
       // extend tree
-      if (u01() < 0.5) {
+      if (u01() < 0.33) {
+        // unary
+        class_id = WEIGHT_TREE;
+        subtree.resize(rand_int(2, max_weighted_subtrees));
+      } else if (u01() < 0.5) {
         // unary
         class_id = UNARY_TREE;
         fname = sample_one(hm_keys(unary_ops()));
