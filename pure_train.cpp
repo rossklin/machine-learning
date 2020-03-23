@@ -1,4 +1,5 @@
 #include <omp.h>
+#include <cassert>
 #include <cmath>
 #include <fstream>
 
@@ -35,9 +36,12 @@ void pure_train() {
 
   pod_game_generator ggen(2, 1, refbot_gen);
   vector<agent_ptr> pop(100);
+  input_sampler isam = ggen.generate_input_sampler();
+  int cdim = ggen.choice_dim();
+
   for (auto &a : pop) {
-    a = agent_gen(ggen.choice_dim());
-    a->initialize_from_input(ggen.generate_input_sampler(), ggen.choice_dim());
+    a = agent_gen(cdim);
+    a->initialize_from_input(isam, cdim);
   }
 
   omp_lock_t writelock;
@@ -52,7 +56,10 @@ void pure_train() {
       if (!a->eval->stable) continue;
 
       a->set_exploration_rate(0.7 - 0.6 * atan(epoch / (float)40) / (M_PI / 2));
+
       game_ptr g = ggen.team_bots_vs(a);
+      assert(g->players.size() == 2);
+
       auto res = g->play(epoch);
 
       for (auto pid : g->team_pids(a->team)) a->train(res.at(pid));
@@ -65,8 +72,9 @@ void pure_train() {
       fmeta << epoch << "," << a->id << "," << xmeta << endl;
       fmeta.close();
       omp_unset_lock(&writelock);
-      cout << "Completed epoch " << epoch << endl;
     }
+
+    cout << "Completed epoch " << epoch << endl;
   }
 
   omp_destroy_lock(&writelock);

@@ -11,6 +11,7 @@
 #include "game.hpp"
 #include "game_generator.hpp"
 #include "population_manager.hpp"
+#include "random_tournament.hpp"
 #include "tournament.hpp"
 #include "types.hpp"
 #include "utility.hpp"
@@ -21,50 +22,7 @@ using namespace std;
 #define MUTATION_SCORE_SINK 0.95
 #define SCORE_UPDATE_RATE 0.01
 
-// ARENA
-template <typename T, typename P>
-arena<T, P>::arena(game_generator_ptr ggen) : ggn(ggen) {}
-
-// // for online learning, unlikely we need it
-// void arena<G,T,P>::train_agents_sarsa(vector<choice::record_table> results) {
-//   int n = results.size();
-//   double alpha = 0.1;
-//   double gamma = 0.8;
-
-//   // local training
-//   for (auto x : players) {
-//     for (int i = 0; i < n - 1; i++) {
-//       choice::record y1 = results[i][x.first];
-//       choice::record y2 = results[i+1][x.first];
-//       double q1 = y1.output;
-//       double q2 = y2.output;
-//       double r = y1.reward;
-//       x.second->cval->update(y1.input, q1 + alpha * (r + gamma * q2 - q1));
-//     }
-//   }
-// }
-
-template <typename T, typename P>
-void arena<T, P>::evolution(int threads, int ngames) {
-#ifndef DEBUG
-  omp_set_num_threads(threads);
-#endif
-
-  for (int epoch = 1; true; epoch++) {
-    pop.prepare_epoch(epoch, ggn);
-    trm.run(pop);
-
-    // train on all games and update player scores
-    cout << "Arena: epoch " << epoch << ": completed game rounds" << endl;
-    pop->evolve();
-
-    cout << "Mating and mutation done, generating epoch stats" << endl;
-    write_stats(epoch);
-  }
-}
-
-template <typename T, typename P>
-void arena<T, P>::write_stats(int epoch) const {
+void write_stats(int epoch, game_generator_ptr ggn, population_manager_ptr pop) {
   // store best brains
   auto player = pop->topn(3);
   for (int i = 0; i < 3 && i < player.size(); i++) {
@@ -95,11 +53,29 @@ void arena<T, P>::write_stats(int epoch) const {
       }
     }
 
-    xmeta = gr->end_stats(player[0]->id, op->id);
-    fmeta << xmeta << endl;
+    xmeta = gr->end_stats();
+    fmeta << player[0]->id << xmeta << endl;
     fmeta.close();
   }
 
   cout << "Completed epoch " << epoch << ", meta: " << endl
        << xmeta << endl;
+}
+
+void evolution(game_generator_ptr ggn, tournament_ptr trm, population_manager_ptr pop, int threads) {
+#ifndef DEBUG
+  omp_set_num_threads(threads);
+#endif
+
+  for (int epoch = 1; true; epoch++) {
+    pop->prepare_epoch(epoch, ggn);
+    trm->run(pop, ggn, epoch);
+
+    // train on all games and update player scores
+    cout << "Arena: epoch " << epoch << ": completed game rounds" << endl;
+    pop->evolve(ggn);
+
+    cout << "Mating and mutation done, generating epoch stats" << endl;
+    write_stats(epoch, ggn, pop);
+  }
 }

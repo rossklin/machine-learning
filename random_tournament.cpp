@@ -47,17 +47,19 @@ void random_tournament::run(population_manager_ptr pm, game_generator_ptr gg, in
 #pragma omp parallel for
     for (int i = 0; i < pm->popsize; i++) {
       agent_ptr a = pm->pop[i];
-      a->train(game_record[a->assigned_game]->result_buf[a->id]);
+      game_ptr g = game_record[a->assigned_game];
+      for (auto pid : g->team_pids(a->team)) a->train(g->result_buf.at(pid));
     }
 
     // update scores
     for (int i = 0; i < pm->pop.size(); i++) {
       agent_ptr p = pm->pop[i];
       game_ptr g = game_record[p->assigned_game];
+      vector<int> clone_ids = g->team_pids(p->team);
 
       // update simple score
       double a = score_update_rate;
-      p->simple_score = a * g->score_simple(p->id) + (1 - a) * p->simple_score;
+      for (auto pid : clone_ids) p->simple_score = a * g->score_simple(pid) + (1 - a) * p->simple_score;
 
       // force game to select a winner by heuristic if the game was a tie
       if (g->winner == -1) g->select_winner();

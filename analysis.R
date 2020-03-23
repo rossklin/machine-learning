@@ -80,6 +80,7 @@ df.pure <- df.pure %>%
 
 ggplot(df.pure, aes(x = epoch, y = speed, color = as.character(rank))) + geom_point(alpha=0.3) + geom_smooth()
 
+## TODO: why so many relative > 1?
 ggplot(df.pure, aes(x = epoch, y = relative, color = as.character(rank))) + geom_point(alpha=0.3) + geom_smooth() + ylim(c(0, 2))
 
 df.pure %>%

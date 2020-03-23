@@ -14,7 +14,7 @@ class evaluator {
   bool stable;
 
   virtual double evaluate(vec x) = 0;
-  virtual void update(vec input, double output, int age) = 0;
+  virtual bool update(vec input, double output, int age) = 0;
   virtual evaluator_ptr mate(evaluator_ptr partner) const = 0;
   virtual evaluator_ptr mutate() const = 0;
   virtual std::string serialize() const;
@@ -23,4 +23,5 @@ class evaluator {
   virtual std::string status_report() const = 0;
   virtual evaluator_ptr clone() const = 0;
   virtual double complexity_penalty() const = 0;
+  virtual double complexity() const = 0;
 };

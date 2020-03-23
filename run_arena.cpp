@@ -12,13 +12,6 @@
 
 using namespace std;
 
-agent_ptr agent_gen() {
-  agent_ptr a(new pod_agent);
-  a->eval = evaluator_ptr(new tree_evaluator);
-  a->label = "tree-pod-agent";
-  return a;
-}
-
 agent_ptr refbot_gen() {
   agent_ptr a(new pod_agent);
   a->eval = evaluator_ptr(new simple_pod_evaluator);
@@ -31,7 +24,7 @@ int main(int argc, char **argv) {
   int ngames = 64;
   int ppt = 2;
   int tpg = 2;
-  int tree_depth = 10;
+  int tree_depth = 8;
   float preplim = 0.5;
 
   for (int i = 1; i < argc; i++) {
@@ -41,9 +34,9 @@ int main(int argc, char **argv) {
       ngames = 4;
       preplim = 0.01;
     } else if (!strcmp(argv[i], "quick")) {
-      threads = 5;
-      tree_depth = 7;
-      ngames = 10;
+      tree_depth = 5;
+      ngames = 4;
+      ppt = 1;
       preplim = 0.2;
     } else if (!strcmp(argv[i], "threads")) {
       threads = atoi(argv[++i]);
@@ -52,10 +45,24 @@ int main(int argc, char **argv) {
     }
   }
 
-  game_generator_ptr ggen(new pod_game_generator(tpg, ppt, agent_gen, refbot_gen));
+  game_generator_ptr ggen(new pod_game_generator(tpg, ppt, refbot_gen));
+  input_sampler is = ggen->generate_input_sampler();
+  int cdim = ggen->choice_dim();
 
-  arena<random_tournament, default_population_manager> a(ggen);
-  a.evolution(threads, ngames);
+  agent_f agent_gen = [is, cdim, tree_depth]() {
+    agent_ptr a(new pod_agent);
+    a->eval = evaluator_ptr(new tree_evaluator(tree_depth));
+    a->label = "tree-pod-agent";
+    a->initialize_from_input(is, cdim);
+    return a;
+  };
+
+  tournament_ptr t(new random_tournament);
+
+  int popsize = ngames * tpg;
+  population_manager_ptr p(new default_population_manager(popsize, agent_gen, preplim));
+
+  evolution(ggen, t, p);
 
   return 0;
 }

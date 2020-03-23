@@ -9,5 +9,6 @@ agent_ptr pod_agent::clone() const {
   a->eval = eval->clone();
   a->csel = csel;
   a->data = data;
+  a->label = label;
   return a;
 }

@@ -1,3 +1,4 @@
+#include <omp.h>
 #include <iostream>
 #include <memory>
 #include <sstream>
@@ -13,11 +14,13 @@ using namespace std;
 int agent::idc = 0;
 
 agent::agent() : csel(0.2) {
+  static MutexType lock;
+  lock.Lock();
   id = idc++;
+  lock.Unlock();
 }
 
 void agent::train(vector<record> results) {
-  cout << "agent::train: start" << endl;
   int n = results.size();
   double gamma = 1;
 
@@ -26,13 +29,12 @@ void agent::train(vector<record> results) {
     results[i].sum_future_rewards = r + gamma * results[i + 1].sum_future_rewards;
   }
 
-  cout << "agent::train: update" << endl;
-  int num_correct = 0, num_zero = 0, num_bad = 0;
+  int num_correct = 0, num_zero = 0, num_bad = 0, num_success = 0;
   for (auto y : results) {
     double target = y.sum_future_rewards;
     double old_output = eval->evaluate(y.input);
 
-    eval->update(y.input, target, age);
+    num_success += eval->update(y.input, target, age);
 
     double new_output = eval->evaluate(y.input);
     double change = new_output - old_output;
@@ -43,7 +45,7 @@ void agent::train(vector<record> results) {
     num_zero += signum(change) == 0;
   }
 
-  cout << "stats: " << num_correct << ", " << num_bad << ", " << num_zero << endl;
+  if (num_success == 0) eval->stable = false;  // evaluator can no longer update
 }
 
 bool agent::evaluator_stability() const {

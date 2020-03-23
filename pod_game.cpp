@@ -14,6 +14,8 @@ using namespace std;
 using namespace pod_game_parameters;
 
 void pod_game::initialize() {
+  reset();
+
   // generate checkpoints
   int n = rand_int(2, 5);
   checkpoint.resize(n);
@@ -41,7 +43,6 @@ void pod_game::initialize() {
   };
 
   for (auto x : get_typed_agents()) x.second->data = gen_pod();
-  cout << "pod_game: initialized for " << players.size() << " players with " << checkpoint.size() << " checkpoints" << endl;
 }
 
 int pod_choice::vector_dim() { return 4; }
@@ -156,9 +157,7 @@ record_table pod_game::increment() {
       if (players[x.first]->team != players[pid]->team) res = fmin(res, own - x.second);
     }
 
-    if (!isfinite(res)) {
-      return res = 0;
-    }
+    assert(isfinite(res));
 
     return res;
   };
@@ -193,13 +192,16 @@ bool pod_game::finished() {
 }
 
 std::string pod_game::end_stats() {
-  auto h = htable();
-  string sep = ",";
   stringstream ss;
+  string sep = ",";
+
+  auto h = htable();
   int pid = team_pids(0).front();
   int pid2 = team_pids(1).front();
+  agent_ptr a = players[pid];
+  assert(a);
 
-  ss << players[pid]->label << sep << players[pid]->age << sep << players[pid]->score << sep << players[pid]->ancestors.size() << sep << players[pid]->parents.size() << sep << (h[pid] / h[pid2]) << sep << (h[pid] / turns_played) << sep << players[pid]->status_report();
+  ss << a->label << sep << a->age << sep << a->score << sep << a->ancestors.size() << sep << a->parents.size() << sep << (h[pid] / h[pid2]) << sep << (h[pid] / turns_played) << sep << a->status_report();
 
   return ss.str();
 }
@@ -227,6 +229,7 @@ double pod_game::score_simple(int pid) {
 void pod_game::reset() {
   game::reset();
   did_finish = false;
+  run_laps = 0;
 }
 
 // agent_ptr pod_game::generate_player() {

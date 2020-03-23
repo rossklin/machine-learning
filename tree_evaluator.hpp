@@ -29,12 +29,13 @@ class tree_evaluator : public evaluator {
     ptr get_subtree(double p_cut);
     bool emplace_subtree(ptr, double p_put);
     ptr clone();
-    void calculate_dw(double delta, double alpha, bool &stable);  // return SS of dw
-    void apply_dw(double scale);                                  // return SS of w
-    void scale_weights(double scale);                             // return SS of w
+    void calculate_dw(double delta, double alpha, double gamma, bool &stable);  // return SS of dw
+    void apply_dw(double scale);                                                // return SS of w
+    void scale_weights(double scale);                                           // return SS of w
     int count_trees();
     bool descendant_exists(tree *p, int lev = 0);
     bool loop_free(int lev = 0);
+    void prune();
     void mutate(int dim);  // mutate in place
     std::string serialize() const;
     void deserialize(std::stringstream &ss);
@@ -45,13 +46,14 @@ class tree_evaluator : public evaluator {
 
  public:
   tree::ptr root;
+  double gamma;  // regularization rate
   double learning_rate;
   double weight_limit;
   int depth;
 
   tree_evaluator(int depth);
   double evaluate(vec x);  // modifies resbuf
-  void update(vec input, double output, int age);
+  bool update(vec input, double output, int age);
   evaluator_ptr mate(evaluator_ptr partner) const;
   evaluator_ptr mutate() const;
   std::string serialize() const;
@@ -61,4 +63,5 @@ class tree_evaluator : public evaluator {
   std::string status_report() const;
   evaluator_ptr clone() const;
   double complexity_penalty() const;
+  double complexity() const;
 };

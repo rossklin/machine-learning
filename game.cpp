@@ -22,12 +22,6 @@ void game::initialize() {
 hm<int, vector<record>> game::play(int epoch) {
   hm<int, vector<record>> res;
 
-  cout << "game::play: players: ";
-  for (auto x : players) {
-    cout << x.first << " (" << x.second->id << "), ";
-  }
-  cout << endl;
-
   for (turns_played = 0; turns_played < max_turns && !finished(); turns_played++) {
     record_table rect = increment();
     for (auto x : rect) res[x.first].push_back(x.second);

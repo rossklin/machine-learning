@@ -9,6 +9,14 @@
 
 using namespace std;
 
+MutexType::MutexType() { omp_init_lock(&lock); }
+MutexType::~MutexType() { omp_destroy_lock(&lock); }
+void MutexType::Lock() { omp_set_lock(&lock); }
+void MutexType::Unlock() { omp_unset_lock(&lock); }
+
+MutexType::MutexType(const MutexType &) { omp_init_lock(&lock); }
+MutexType &MutexType::operator=(const MutexType &) { return *this; }
+
 point operator+(const point &a, const point &b) { return {a.x + b.x, a.y + b.y}; };
 point operator-(const point &a, const point &b) { return {a.x - b.x, a.y - b.y}; };
 point operator*(const double &s, const point &a) { return {s * a.x, s * a.y}; };
@@ -71,14 +79,21 @@ mt19937 &get_random_engine() {
 double u01(double a, double b) {
   uniform_real_distribution<double> distribution(a, b);
   mt19937 &gen = get_random_engine();
+  MutexType m;
+  m.Lock();
   double test = distribution(gen);
+  m.Unlock();
   return test;
 }
 
 double rnorm(double m, double s) {
   normal_distribution<double> distribution(m, s);
-  auto generator = bind(distribution, get_random_engine());
-  return generator();
+  mt19937 &gen = get_random_engine();
+  MutexType mut;
+  mut.Lock();
+  double test = distribution(gen);
+  mut.Unlock();
+  return test;
 }
 
 int rand_int(int a, int b) {

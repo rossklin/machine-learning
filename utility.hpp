@@ -1,11 +1,25 @@
 #pragma once
 
+#include <omp.h>
 #include <functional>
 #include <iostream>
 #include <random>
 #include <set>
 #include <unordered_map>
 #include <vector>
+
+struct MutexType {
+  MutexType();
+  ~MutexType();
+  void Lock();
+  void Unlock();
+
+  MutexType(const MutexType &);
+  MutexType &operator=(const MutexType &);
+
+ public:
+  omp_lock_t lock;
+};
 
 template <typename T = double, typename V = double>
 std::vector<V> map(std::function<V(T)> f, std::vector<T> x) {
