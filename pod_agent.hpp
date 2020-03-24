@@ -25,6 +25,6 @@ class pod_agent : public agent {
   typedef std::shared_ptr<pod_agent> ptr;
   pod_data data;
 
-  pod_agent() = default;
+  pod_agent();
   agent_ptr clone() const override;
 };

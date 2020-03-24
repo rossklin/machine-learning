@@ -1,4 +1,5 @@
 #pragma once
+#include <sstream>
 #include <string>
 
 #include "types.hpp"
@@ -25,6 +26,8 @@ struct choice_selector {
   choice_ptr select(std::vector<choice_ptr> opts);
   void set_exploration_rate(float r);
   void set_schema(cs_schema s);
+  std::string serialize() const;
+  void deserialize(std::stringstream &ss);
 };
 
 // typedef std::function<vec(game::ptr g, int pid, choice::ptr c)> vectorizer;

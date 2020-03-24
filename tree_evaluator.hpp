@@ -51,6 +51,7 @@ class tree_evaluator : public evaluator {
   double weight_limit;
   int depth;
 
+  tree_evaluator();
   tree_evaluator(int depth);
   double evaluate(vec x);  // modifies resbuf
   bool update(vec input, double output, int age);

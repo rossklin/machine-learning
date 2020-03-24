@@ -2,10 +2,18 @@
 
 #include <memory>
 #include <set>
+#include <sstream>
 #include <string>
 
 #include "choice.hpp"
 #include "types.hpp"
+
+enum agent_class {
+  POD_AGENT
+};
+
+std::string serialize_agent(agent_ptr a);
+agent_ptr deserialize_agent(std::stringstream &ss);
 
 class agent : public std::enable_shared_from_this<agent> {
  public:
@@ -14,6 +22,7 @@ class agent : public std::enable_shared_from_this<agent> {
   choice_selector csel;
   evaluator_ptr eval;
 
+  int class_id;
   int team;
   int id;
   int team_index;
@@ -30,7 +39,7 @@ class agent : public std::enable_shared_from_this<agent> {
 
   // constructors
   agent();
-  virtual void deserialize(std::string s);
+  virtual void deserialize(std::stringstream &ss);
 
   // duplicators
   virtual agent_ptr clone() const = 0;

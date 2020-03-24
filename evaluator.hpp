@@ -11,6 +11,7 @@ class evaluator {
   int dim;
 
  public:
+  std::string tag;
   bool stable;
 
   virtual double evaluate(vec x) = 0;

@@ -5,8 +5,11 @@
 #include <iostream>
 #include <random>
 #include <set>
+#include <string>
 #include <unordered_map>
 #include <vector>
+
+const std::string sep = " ";
 
 struct MutexType {
   MutexType();

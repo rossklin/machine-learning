@@ -15,6 +15,12 @@ const int max_weighted_subtrees = 10;
 
 tree_evaluator::tree_evaluator(int d) : depth(d), evaluator() {
   gamma = abs(rnorm(0.001, 0.0005));
+  tag = "tree";
+}
+
+tree_evaluator::tree_evaluator() : evaluator() {
+  gamma = abs(rnorm(0.001, 0.0005));
+  tag = "tree";
 }
 
 hm<string, t_unary> tree_evaluator::unary_ops() {
@@ -186,6 +192,8 @@ string tree_evaluator::tree::serialize() const {
     ss << const_value;
   } else if (class_id == INPUT_TREE) {
     ss << input_index;
+  } else if (class_id == WEIGHT_TREE) {
+    ss << subtree.size();
   } else {
     ss << fname;
   }
@@ -547,13 +555,13 @@ evaluator_ptr tree_evaluator::mutate() const {
 string tree_evaluator::serialize() const {
   stringstream ss;
   string sep = " ";
-  ss << evaluator::serialize() << sep << learning_rate << sep << weight_limit << sep << root->serialize();
+  ss << evaluator::serialize() << sep << learning_rate << sep << weight_limit << sep << gamma << sep << root->serialize();
   return ss.str();
 }
 
 void tree_evaluator::deserialize(stringstream &ss) {
   evaluator::deserialize(ss);
-  ss >> learning_rate >> weight_limit;
+  ss >> learning_rate >> weight_limit >> gamma;
 
   root = tree::ptr(new tree);
   root->deserialize(ss);

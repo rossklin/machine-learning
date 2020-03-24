@@ -16,6 +16,22 @@ population_manager::population_manager(int popsize, agent_f gen, float plim) : p
   assert(popsize >= 8);
 }
 
+// todo: may not be popsize agents in pop
+string population_manager::serialize() const {
+  stringstream ss;
+  string sep = " ";
+  ss << popsize << sep << preplim << sep << simple_score_limit << sep;
+  for (auto a : pop) ss << serialize_agent(a) << sep;
+  return ss.str();
+}
+
+void population_manager::deserialize(stringstream &ss) {
+  ss >> popsize >> preplim >> simple_score_limit;
+  assert(popsize > 0 && popsize < 1e4);
+  pop.resize(popsize);
+  for (auto &a : pop) a = deserialize_agent(ss);
+}
+
 string population_manager::pop_stats(string row_prefix) const {
   stringstream ss;
   string sep = ",";

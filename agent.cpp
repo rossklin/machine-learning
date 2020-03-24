@@ -7,17 +7,52 @@
 #include "choice.hpp"
 #include "evaluator.hpp"
 #include "game.hpp"
+#include "pod_agent.hpp"
+#include "tree_evaluator.hpp"
 #include "utility.hpp"
 
 using namespace std;
 
 int agent::idc = 0;
 
+string serialize_agent(agent_ptr a) {
+  stringstream ss;
+  ss << a->class_id << sep << a->serialize();
+  return ss.str();
+}
+
+agent_ptr deserialize_agent(stringstream &ss) {
+  agent_ptr a;
+  int test;
+  string class_tag;
+
+  ss >> test;
+
+  if (test == (int)POD_AGENT) {
+    a = agent_ptr(new pod_agent);
+    class_tag = "pod";
+  } else {
+    throw runtime_error("Invalid agent class id: " + to_string(test));
+  }
+
+  a->deserialize(ss);
+  a->label = a->eval->tag + "-" + class_tag;
+
+  return a;
+}
+
 agent::agent() : csel(0.2) {
   static MutexType lock;
   lock.Lock();
   id = idc++;
   lock.Unlock();
+
+  score = 0;
+  last_score = 0;
+  simple_score = 0;
+  was_protected = false;
+  age = 0;
+  mut_age = 0;
 }
 
 void agent::train(vector<record> results) {
@@ -59,12 +94,23 @@ void agent::set_exploration_rate(float r) {
 agent_ptr agent::mate(agent_ptr p) const {
   agent_ptr a = clone();
   a->eval = p->eval->mate(eval);
+  a->parents = {id, p->id};
+  a->ancestors = set_union(ancestors, p->ancestors);
+  a->ancestors.insert(id);
+  a->ancestors.insert(p->id);
+  a->score = a->last_score = 0.5 * 0.9 * (score + p->score);
+  a->simple_score = 0.5 * 0.9 * (simple_score + p->simple_score);
   return a;
 }
 
 agent_ptr agent::mutate() const {
   agent_ptr a = clone();
   a->eval->mutate();
+  a->parents = parents;
+  a->ancestors = ancestors;
+  a->score = a->last_score = 0.9 * score;
+  a->simple_score = 0.9 * simple_score;
+  a->age = age;
   return a;
 }
 
@@ -77,13 +123,29 @@ void agent::initialize_from_input(input_sampler s, int choice_dim) {
 };
 
 std::string agent::serialize() const {
-  // todo: serialize other agent components
-  return eval->serialize();
+  stringstream ss;
+
+  ss << id << sep << score << sep << last_score << sep << simple_score << sep << was_protected << sep << age << sep << mut_age << sep << csel.serialize() << sep << eval->tag << sep << eval->serialize();
+  return ss.str();
 }
 
-void agent::deserialize(std::string s) {
-  stringstream ss(s);
+void agent::deserialize(std::stringstream &ss) {
+  ss >> id >> score >> last_score >> simple_score >> was_protected >> age >> mut_age;
+  csel.deserialize(ss);
+
+  string tag;
+  ss >> tag;
+
+  if (tag == "tree") {
+    eval = evaluator_ptr(new tree_evaluator);
+  } else {
+    throw runtime_error("Invalid evaluator tag: " + tag);
+  }
+
   eval->deserialize(ss);
+
+  // guarantee deserializing an agent does not break id generator
+  if (id >= idc) idc = id + 1;
 }
 
 choice_ptr agent::select_choice(game_ptr g) {

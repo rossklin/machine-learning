@@ -26,3 +26,15 @@ choice_ptr choice_selector::select(vector<choice_ptr> opts) {
 
 void choice_selector::set_exploration_rate(float r) { xrate = r; }
 void choice_selector::set_schema(cs_schema s) { schema = s; }
+
+string choice_selector::serialize() const {
+  stringstream ss;
+  ss << xrate << " " << schema;
+  return ss.str();
+}
+
+void choice_selector::deserialize(stringstream &ss) {
+  int buf;
+  ss >> xrate >> buf;
+  schema = cs_schema(buf);
+}
