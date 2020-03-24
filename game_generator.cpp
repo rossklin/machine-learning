@@ -9,7 +9,10 @@
 
 using namespace std;
 
-game_generator::game_generator(int teams, int ppt, agent_f refbot_generator) : nr_of_teams(teams), ppt(ppt), refbot_generator(refbot_generator) {}
+game_generator::game_generator(int teams, int ppt, agent_f refbot_generator) : nr_of_teams(teams), ppt(ppt), refbot_generator(refbot_generator) {
+  prep_npar = 32;
+  max_turns = 100;
+}
 
 vector<agent_ptr> game_generator::make_teams(vector<agent_ptr> ps) const {
   vector<agent_ptr> buf(nr_of_teams * ppt);
@@ -67,11 +70,10 @@ function<vec()> game_generator::generate_input_sampler() const {
 
 // Let #npar bots play 100 games, select those which pass score limit and then select the best one
 agent_ptr game_generator::prepared_player(agent_f gen, float plim) const {
-  int npar = 24;  // debug, todo: higher number might be more efficient
-  vector<agent_ptr> buf(npar);
+  vector<agent_ptr> buf(prep_npar);
 
 #pragma omp parallel for
-  for (int t = 0; t < npar; t++) {
+  for (int t = 0; t < prep_npar; t++) {
     float eval = 0;
     agent_ptr a = gen();
 
@@ -86,8 +88,6 @@ agent_ptr game_generator::prepared_player(agent_f gen, float plim) const {
 
       if (a->eval->complexity_penalty() < 1e-5) {
         // this agent has degenerated
-        // int ntree = static_pointer_cast<tree_evaluator>(a->eval)->root->count_trees();  // debug
-        // cout << "Replacing agent " << a->id << " which degenerated to non-complex state at ntree = " << ntree << endl;
         a = gen();
         eval = 0;
         continue;
@@ -95,8 +95,6 @@ agent_ptr game_generator::prepared_player(agent_f gen, float plim) const {
 
       if (!a->eval->stable) {
         // this agent has degenerated
-        // int ntree = static_pointer_cast<tree_evaluator>(a->eval)->root->count_trees();  // debug
-        // cout << "Replacing agent " << a->id << " which became unstable at ntree = " << ntree << endl;
         a = gen();
         eval = 0;
         continue;

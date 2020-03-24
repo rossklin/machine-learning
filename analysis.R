@@ -7,7 +7,7 @@ theme_update(text = element_text(size = 30))
 
 ## SPECIFIC GAME DATA
 df <- setNames(
-    read.csv("game.csv", header=F),
+    read.csv("data/game.csv", header=F),
     c("game.id", "turn", "team", "lap", "player.id", "x", "y", "reward")
 )
 
@@ -18,7 +18,7 @@ df = df %>% group_by(game.id, player.id) %>%
         speed = sqrt(dx^2 + dy^2)
     )
 
-gid <- tail(df$game.id, 1)
+gid <- tail(unique(df$game.id), 2)[1]
 df.game <- df %>% filter(game.id == gid, turn < 1000)
 
 ggplot(df.game, aes(x, y, color = as.character(team), shape = as.character(player.id), size = lap)) + geom_point() + transition_time(turn) + ease_aes('linear')
@@ -28,7 +28,7 @@ ggplot(df.game, aes(x = x, y = y, group = interaction(game.id, player.id))) + ge
 ## df.meta <- setNames(read.csv("game.meta.csv", header=F), c("pid", "label", "age", "score", "nancestors", "nparents", "relative", "speed", "nbase", "alpha", "cluster", "bwc", "bws", "dqm", "dqstd"))
 
 ## POPULATION STATISTICS
-df.population <- setNames(read.csv("population.csv", header=F), c("epoch", "pid", "rank", "nancestors", "nparents", "score", "age", "treesize", "lrate"))
+df.population <- setNames(read.csv("data/population.csv", header=F), c("epoch", "pid", "rank", "nancestors", "nparents", "score", "age", "treesize", "lrate"))
 
 rank.limit <- 10
 population.means <- df.population %>% 
@@ -104,17 +104,16 @@ df.pure %>%
     )
 
 ## REFERENCE GAME STATISTICS
-df.meta <- setNames(read.csv("game.meta.csv", header=F), c("pid", "label", "age", "score", "nancestors", "nparents", "relative", "speed", "treesize", "lrate"))
 
-df.meta <- df.meta %>%
-    mutate(gid = ceiling(row_number()/3)) %>%
-    mutate(win = as.numeric(relative >= 1))
+df.meta <- setNames(read.csv("data/game.meta.csv", header=F), c("epoch", "pid", "did.finish", "label", "age", "score", "nancestors", "nparents", "relative", "speed", "treesize", "lrate"))
+
+df.meta <- df.meta %>% mutate(win = as.numeric(relative >= 1))
 
 df.meta %>% tail
 
-ggplot(df.meta, aes(x = gid, y = speed)) + geom_point() + geom_smooth()
-ggplot(df.meta, aes(x = gid, y = relative)) + geom_point() + geom_smooth() + ylim(c(0, 3))
-ggplot(df.meta, aes(x = gid, y = win)) + geom_smooth()
+ggplot(df.meta, aes(x = epoch, y = speed)) + geom_point() + geom_smooth()
+ggplot(df.meta, aes(x = epoch, y = relative)) + geom_point() + geom_smooth()
+ggplot(df.meta, aes(x = epoch, y = win)) + geom_smooth()
 
 df.meta %>% mutate(lev = ceiling(gid/50)) %>% group_by(lev) %>% summarize(s = mean(speed), w = mean(win)) %>% data.frame
 

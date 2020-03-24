@@ -48,7 +48,9 @@ void pod_game::initialize() {
 int pod_choice::vector_dim() { return 4; }
 bool pod_choice::validate() { return true; }
 
-pod_game::pod_game(player_table pl) : game(pl) {}
+pod_game::pod_game(player_table pl) : game(pl) {
+  max_turns = 300;
+}
 
 hm<int, pod_agent::ptr> pod_game::get_typed_agents() {
   hm<int, pod_agent::ptr> res;
@@ -175,11 +177,11 @@ record_table pod_game::increment() {
   // todo: validate that pods pass checkpoints and laps
   if (enable_output) {
     // write csv output
-    fstream f("game.csv", ios::app);
+    fstream f("data/game.csv", ios::app);
     for (auto x : get_typed_agents()) {
       int pid = x.first;
       pod_agent::ptr p = x.second;
-      f << game_id << "," << res.size() << "," << p->team << "," << p->data.lap << "," << pid << "," << p->data.x.x << ", " << p->data.x.y << ", " << res[pid].reward << endl;
+      f << game_id << "," << turns_played << "," << p->team << "," << p->data.lap << "," << pid << "," << p->data.x.x << ", " << p->data.x.y << ", " << res[pid].reward << endl;
     }
     f.close();
   }
@@ -201,7 +203,7 @@ std::string pod_game::end_stats() {
   agent_ptr a = players[pid];
   assert(a);
 
-  ss << a->label << sep << a->age << sep << a->score << sep << a->ancestors.size() << sep << a->parents.size() << sep << (h[pid] / h[pid2]) << sep << (h[pid] / turns_played) << sep << a->status_report();
+  ss << finished() << sep << a->label << sep << a->age << sep << a->score << sep << a->ancestors.size() << sep << a->parents.size() << sep << (h[pid] / h[pid2]) << sep << (h[pid] / turns_played) << sep << a->status_report();
 
   return ss.str();
 }

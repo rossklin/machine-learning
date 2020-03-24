@@ -12,12 +12,20 @@
 using namespace std;
 
 game::game(player_table pl) : players(pl) {
+  static int idc = 0;
+  MutexType m;
+
+  m.Lock();
+  game_id = idc++;
+  m.Unlock();
+
   max_turns = 100;
+  enable_output = false;
 }
 
 void game::initialize() {
   turns_played = 0;
-}  // todo: what was this for?
+}
 
 hm<int, vector<record>> game::play(int epoch) {
   hm<int, vector<record>> res;

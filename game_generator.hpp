@@ -7,6 +7,8 @@ class game_generator {
   agent_f refbot_generator;
   int nr_of_teams;
   int ppt;
+  int prep_npar;
+  int max_turns;
 
   game_generator(int teams, int ppt, agent_f refbot_generator);
 

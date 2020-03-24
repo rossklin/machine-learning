@@ -78,6 +78,8 @@ void population_manager::prepare_epoch(int epoch, game_generator_ptr gg) {
     a->last_score = a->score;
     a->set_exploration_rate(q);
   }
+
+  sortpop();
 }
 
 double mate_score(agent_ptr parent1, agent_ptr x) {
@@ -92,6 +94,10 @@ double mate_score(agent_ptr parent1, agent_ptr x) {
 
   return x->score + different_ancestors - common_parents;
 };
+
+void population_manager::sortpop() {
+  sort(pop.begin(), pop.end(), [](agent_ptr a, agent_ptr b) -> bool { return a->score > b->score; });
+}
 
 void population_manager::evolve(game_generator_ptr gg) {
   check_gg(gg);
@@ -119,7 +125,7 @@ void population_manager::evolve(game_generator_ptr gg) {
   int nkeep = max((int)pop.size() / 4, 2);
 
   // select nkeep best players
-  sort(pop.begin(), pop.end(), [](agent_ptr a, agent_ptr b) -> bool { return a->score > b->score; });
+  sortpop();
 
   // update simple score limit
   int lim_idx = 0.67 * pop.size();
@@ -198,4 +204,7 @@ void population_manager::evolve(game_generator_ptr gg) {
     x->mut_age++;
     x->score *= (1 - score_update_rate);
   }
+
+  // sort population again
+  sortpop();
 }

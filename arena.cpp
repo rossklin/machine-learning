@@ -23,38 +23,27 @@ using namespace std;
 #define SCORE_UPDATE_RATE 0.01
 
 void write_stats(int epoch, game_generator_ptr ggn, population_manager_ptr pop) {
-  // store best brains
-  auto player = pop->topn(3);
-  for (int i = 0; i < 3 && i < player.size(); i++) {
-    ofstream f("brains/p" + to_string(i) + "_r" + to_string(epoch) + ".txt");
-    f << player[i]->serialize();
-    f.close();
-  }
+  // backup complete population
+  ofstream f("save/autosave-epoch-" + to_string(epoch) + ".txt");
+  f << epoch << " " << pop->serialize();
+  f.close();
 
   // player stats
-  ofstream fstat("population.csv", ios::app);
+  ofstream fstat("data/population.csv", ios::app);
   fstat << pop->pop_stats(to_string(epoch));
   fstat.close();
 
   // reference game
   string xmeta;
   for (int j = 0; j < 3; j++) {
-    game_ptr gr = ggn->team_bots_vs(player[0]);
+    game_ptr gr = ggn->team_bots_vs(pop->pop[0]);
     gr->enable_output = true;
     gr->play(epoch);
-    ofstream fmeta("game.meta.csv", ios::app);
-
-    // find opponent to print
-    agent_ptr op;
-    for (auto p : gr->players) {
-      if (p.second->team != 0) {
-        op = p.second;
-        break;
-      }
-    }
+    ofstream fmeta("data/game.meta.csv", ios::app);
 
     xmeta = gr->end_stats();
-    fmeta << player[0]->id << xmeta << endl;
+    string comma = ",";
+    fmeta << epoch << comma << pop->pop[0]->id << comma << xmeta << endl;
     fmeta.close();
   }
 
@@ -62,12 +51,24 @@ void write_stats(int epoch, game_generator_ptr ggn, population_manager_ptr pop) 
        << xmeta << endl;
 }
 
-void evolution(game_generator_ptr ggn, tournament_ptr trm, population_manager_ptr pop, int threads) {
+void evolution(game_generator_ptr ggn, tournament_ptr trm, population_manager_ptr pop, int threads, string loadfile) {
 #ifndef DEBUG
   omp_set_num_threads(threads);
 #endif
 
-  for (int epoch = 1; true; epoch++) {
+  int start_epoch = 1;
+
+  if (loadfile.length() > 0) {
+    ifstream f(loadfile, ios::in);
+    stringstream ss;
+    ss << f.rdbuf();
+
+    ss >> start_epoch;
+    pop->deserialize(ss);
+    start_epoch++;
+  }
+
+  for (int epoch = start_epoch; true; epoch++) {
     pop->prepare_epoch(epoch, ggn);
     trm->run(pop, ggn, epoch);
 

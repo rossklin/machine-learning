@@ -5,7 +5,9 @@
 
 using namespace std;
 
-pod_game_generator::pod_game_generator(int teams, int ppt, agent_f refbot_generator) : game_generator(teams, ppt, refbot_generator) {}
+pod_game_generator::pod_game_generator(int teams, int ppt, agent_f refbot_generator) : game_generator(teams, ppt, refbot_generator) {
+  max_turns = 300;
+}
 
 game_ptr pod_game_generator::generate_starting_state(std::vector<agent_ptr> p) const {
   player_table pl;
