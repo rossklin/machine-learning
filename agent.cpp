@@ -159,5 +159,10 @@ float agent::complexity_penalty() const {
 }
 
 string agent::status_report() const {
-  return eval->status_report();
+  stringstream ss;
+  string comma = ",";
+
+  ss << id << comma << label << comma << age << comma << score << comma << ancestors.size() << comma << parents.size() << comma << eval->status_report();
+
+  return ss.str();
 }

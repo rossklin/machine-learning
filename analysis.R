@@ -105,7 +105,10 @@ df.pure %>%
 
 ## REFERENCE GAME STATISTICS
 
-df.meta <- setNames(read.csv("data/game.meta.csv", header=F), c("epoch", "pid", "did.finish", "label", "age", "score", "nancestors", "nparents", "relative", "speed", "treesize", "lrate"))
+df.meta <- setNames(
+    read.csv("data/game.meta.csv", header=F),
+    c("epoch", "pid", "label", "age", "score", "nancestors", "nparents", "treesize", "lrate", "did.finish", "relative", "speed")
+)
 
 df.meta <- df.meta %>% mutate(win = as.numeric(relative >= 1))
 

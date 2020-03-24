@@ -10,6 +10,7 @@
 #include <vector>
 
 const std::string sep = " ";
+const std::string comma = ",";
 
 struct MutexType {
   MutexType();

@@ -34,18 +34,21 @@ void write_stats(int epoch, game_generator_ptr ggn, population_manager_ptr pop) 
   fstat.close();
 
   // reference game
-  string xmeta;
+  stringstream ss;
   for (int j = 0; j < 3; j++) {
-    game_ptr gr = ggn->team_bots_vs(pop->pop[0]);
+    agent_ptr a = pop->pop[0];
+    game_ptr gr = ggn->team_bots_vs(a);
+
     gr->enable_output = true;
     gr->play(epoch);
-    ofstream fmeta("data/game.meta.csv", ios::app);
 
-    xmeta = gr->end_stats();
-    string comma = ",";
-    fmeta << epoch << comma << pop->pop[0]->id << comma << xmeta << endl;
-    fmeta.close();
+    ss << epoch << comma << a->status_report() << comma << gr->end_stats() << endl;
   }
+
+  string xmeta = ss.str();
+  ofstream fmeta("data/game.meta.csv", ios::app);
+  fmeta << xmeta;
+  fmeta.close();
 
   cout << "Completed epoch " << epoch << ", meta: " << endl
        << xmeta << endl;

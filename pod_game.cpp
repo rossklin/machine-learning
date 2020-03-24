@@ -16,6 +16,8 @@ using namespace pod_game_parameters;
 void pod_game::initialize() {
   reset();
 
+  run_laps = rand_int(1, 3);
+
   // generate checkpoints
   int n = rand_int(2, 5);
   checkpoint.resize(n);
@@ -195,15 +197,13 @@ bool pod_game::finished() {
 
 std::string pod_game::end_stats() {
   stringstream ss;
-  string sep = ",";
+  string comma = ",";
 
   auto h = htable();
   int pid = team_pids(0).front();
   int pid2 = team_pids(1).front();
-  agent_ptr a = players[pid];
-  assert(a);
 
-  ss << finished() << sep << a->label << sep << a->age << sep << a->score << sep << a->ancestors.size() << sep << a->parents.size() << sep << (h[pid] / h[pid2]) << sep << (h[pid] / turns_played) << sep << a->status_report();
+  ss << finished() << comma << (h[pid] / h[pid2]) << comma << (h[pid] / turns_played);
 
   return ss.str();
 }
