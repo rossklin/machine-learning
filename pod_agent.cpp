@@ -1,6 +1,7 @@
+#include "pod_agent.hpp"
+
 #include <sstream>
 
-#include "pod_agent.hpp"
 #include "pod_game.hpp"
 #include "utility.hpp"
 
@@ -17,6 +18,12 @@ agent_ptr pod_agent::clone() const {
   a->data = data;
   a->label = label;
   a->class_id = class_id;
+
+  if (original_id > -1) {
+    a->original_id = original_id;
+  } else {
+    a->original_id = id;
+  }
 
   return a;
 }

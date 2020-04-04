@@ -25,6 +25,7 @@ class agent : public std::enable_shared_from_this<agent> {
   int class_id;
   int team;
   int id;
+  int original_id;
   int team_index;
   int assigned_game;
   double score;
@@ -36,6 +37,7 @@ class agent : public std::enable_shared_from_this<agent> {
   std::string label;
   std::set<int> parents;
   std::set<int> ancestors;
+  std::vector<agent_ptr> parent_buf;  // for use in prepared player
 
   // constructors
   agent();
