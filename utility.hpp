@@ -1,6 +1,7 @@
 #pragma once
 
 #include <omp.h>
+
 #include <functional>
 #include <iostream>
 #include <random>
@@ -98,8 +99,31 @@ template <typename T>
 std::ostream &operator<<(std::ostream &os, const std::vector<T> &x) {
   os << x.size();
   if (x.empty()) return os;
-  for (auto y : x) os << " " << y;
+  for (auto y : x) os << sep << y;
   return os;
+};
+
+template <typename T>
+std::ostream &operator<<(std::ostream &os, const std::set<T> &x) {
+  os << x.size();
+  if (x.empty()) return os;
+  for (auto y : x) os << sep << y;
+  return os;
+};
+
+template <typename T>
+std::istream &operator>>(std::istream &is, std::set<T> &x) {
+  int n;
+  is >> n;
+  if (n == 0) return is;
+
+  for (int i = 0; i < n; i++) {
+    int v;
+    is >> v;
+    x.insert(v);
+  }
+
+  return is;
 };
 
 std::istream &operator>>(std::istream &os, vec &x);
