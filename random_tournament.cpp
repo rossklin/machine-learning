@@ -1,3 +1,5 @@
+#include "random_tournament.hpp"
+
 #include <algorithm>
 #include <cassert>
 #include <iostream>
@@ -6,13 +8,12 @@
 #include "game.hpp"
 #include "game_generator.hpp"
 #include "population_manager.hpp"
-#include "random_tournament.hpp"
 
 using namespace std;
 
 void random_tournament::run(population_manager_ptr pm, game_generator_ptr gg, int epoch) {
-  int game_rounds = 10;
-  int practice_rounds = 3;
+  int game_rounds = 50;
+  int practice_rounds = 20;
   float score_update_rate = 0.05;
   int ppt = gg->ppt;
   int tpg = gg->nr_of_teams;
@@ -22,18 +23,26 @@ void random_tournament::run(population_manager_ptr pm, game_generator_ptr gg, in
 
   for (int round = 0; round < game_rounds; round++) {
     // play a number of games, reusing players as needed
-    cout << "Arena: epoch " << epoch << " round " << round << (round < practice_rounds ? " (practice)" : "") << ": select players" << endl;
+    cout << "Arena: epoch " << epoch << " round " << round << ": select players" << endl;
+
+    bool practice = round < practice_rounds;
+    float use_exrate = practice ? 0.4 : 0.05;
 
     // match players in games
     auto player_buf = pm->pop;
     random_shuffle(player_buf.begin(), player_buf.end());
+    for (auto a : player_buf) a->set_exploration_rate(use_exrate);
+
     vector<game_ptr> game_record(ngames);
 
     // agents play vs each other
     for (int idx = 0; idx < ngames; idx++) {
       vector<agent_ptr> assign_players(player_buf.begin() + idx * tpg, player_buf.begin() + (idx + 1) * tpg);
       for (auto a : assign_players) a->assigned_game = idx;
+
+      // this is a bit ugly: make_teams sets the team of the original agent as well as the clone
       game_record[idx] = gg->generate_starting_state(gg->make_teams(assign_players));
+      game_record[idx]->original_agents = assign_players;
     }
 
     cout << "Arena: epoch " << epoch << " round " << round << ": play games" << endl;
@@ -48,14 +57,17 @@ void random_tournament::run(population_manager_ptr pm, game_generator_ptr gg, in
     for (int i = 0; i < pm->popsize; i++) {
       agent_ptr a = pm->pop[i];
       game_ptr g = game_record[a->assigned_game];
-      for (auto pid : g->team_pids(a->team)) a->train(g->result_buf.at(pid));
+      for (auto pid : g->team_clone_ids(a->team)) a->train(g->result_buf.at(pid));
     }
+
+    // do not update scores if this is a practice round
+    if (practice) continue;
 
     // update scores
     for (int i = 0; i < pm->pop.size(); i++) {
       agent_ptr p = pm->pop[i];
       game_ptr g = game_record[p->assigned_game];
-      vector<int> clone_ids = g->team_pids(p->team);
+      vector<int> clone_ids = g->team_clone_ids(p->team);
 
       // update simple score
       double a = score_update_rate;
@@ -64,14 +76,19 @@ void random_tournament::run(population_manager_ptr pm, game_generator_ptr gg, in
       // force game to select a winner by heuristic if the game was a tie
       if (g->winner == -1) g->select_winner();
 
+      // not possible to determine winner, no score updating
+      if (g->winner == -1) continue;
+
       double score_defeated = 0;
       double score_winner = 0;
-      for (auto x : g->players) {
-        if (x.second->team != g->winner) score_defeated += x.second->score;
+      for (auto x : g->original_agents) {
+        if (x->team != g->winner) score_defeated += x->score;
       }
-      for (auto x : g->players) {
-        if (x.second->team == g->winner) score_winner += x.second->score;
+
+      for (auto x : g->original_agents) {
+        if (x->team == g->winner) score_winner += x->score;
       }
+
       score_defeated /= ppt * (tpg - 1);
       score_winner /= ppt;
 
