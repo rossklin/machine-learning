@@ -1,9 +1,10 @@
+#include "tree_evaluator.hpp"
+
 #include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <sstream>
 
-#include "tree_evaluator.hpp"
 #include "utility.hpp"
 
 #define VERBOSE false
@@ -362,32 +363,28 @@ void tree_evaluator::tree::initialize(int dim, int depth) {
 }
 
 tree_evaluator::tree::ptr tree_evaluator::tree::get_subtree(double p_cut) {
-  if (subtree.empty()) return 0;
+  if (subtree.empty()) return shared_from_this();
 
   if (u01() < p_cut) {
     return sample_one(subtree)->clone();
   } else {
-    for (auto t : subtree) {
-      tree::ptr
-          test = t->get_subtree(p_cut);
-      if (test) return test;
-    }
-    return get_subtree(p_cut);
+    return sample_one(subtree)->get_subtree(p_cut);
   }
 }
 
-bool tree_evaluator::tree::emplace_subtree(tree::ptr x, double p_put) {
-  if (subtree.empty()) return false;
-
-  if (u01() < p_put) {
-    int idx = rand_int(0, subtree.size() - 1);
-    subtree[idx] = x;
-    return true;
+void tree_evaluator::tree::emplace_subtree(tree::ptr x, double p_put) {
+  if (subtree.empty()) {
+    // become a weight tree with x as subtree
+    class_id = WEIGHT_TREE;
+    w = 1;
+    subtree = {x};
   } else {
-    for (auto t : subtree) {
-      if (t->emplace_subtree(x, p_put)) return true;
+    if (u01() < p_put) {
+      int idx = rand_int(0, subtree.size() - 1);
+      subtree[idx] = x;
+    } else {
+      sample_one(subtree)->emplace_subtree(x, p_put);
     }
-    return emplace_subtree(x, p_put);
   }
 }
 
@@ -527,21 +524,9 @@ evaluator_ptr tree_evaluator::mate(evaluator_ptr partner_buf) const {
   child->learning_rate = fmax(rnorm(0.5, 0.1) * (learning_rate + partner->learning_rate), 1e-5);
   child->weight_limit = fmax(rnorm(0.5, 0.1) * (weight_limit + partner->weight_limit), 1);
 
-  tree::ptr sub = 0;
-
-  // todo: guarantee success
-  for (int i = 0; i < 10 && sub == 0; i++) sub = partner->root->get_subtree(0.3);
-  if (sub == 0) return 0;
-
-  bool success = false;
-  for (int i = 0; i < 10 && !success; i++) success = child->root->emplace_subtree(sub, 0.3);
-
-  if (success) {
-    // assert(child->root->loop_free());
-    return child;
-  } else {
-    return 0;
-  }
+  tree::ptr sub = partner->root->get_subtree(0.3);
+  child->root->emplace_subtree(sub, 0.3);
+  return child->mutate();
 }
 
 evaluator_ptr tree_evaluator::mutate() const {

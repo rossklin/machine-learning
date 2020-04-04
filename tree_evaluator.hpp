@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #include "evaluator.hpp"
 
 class tree_evaluator : public evaluator {
@@ -11,7 +13,7 @@ class tree_evaluator : public evaluator {
     WEIGHT_TREE     // 4
   };
 
-  struct tree {
+  struct tree : public std::enable_shared_from_this<tree> {
     typedef std::shared_ptr<tree> ptr;
     double w;
     tree_class class_id;
@@ -27,7 +29,7 @@ class tree_evaluator : public evaluator {
     double evaluate(const vec &x);
     void initialize(int dim, int depth);
     ptr get_subtree(double p_cut);
-    bool emplace_subtree(ptr, double p_put);
+    void emplace_subtree(ptr, double p_put);
     ptr clone();
     void calculate_dw(double delta, double alpha, double gamma, bool &stable);  // return SS of dw
     void apply_dw(double scale);                                                // return SS of w
