@@ -2,8 +2,18 @@ library(dplyr)
 library(ggplot2)
 library(reshape2)
 library(gganimate)
+library(plotly)
 
 theme_update(text = element_text(size = 30))
+
+p.angle <- function(x) if (x[1] > 0) {atan(x[2] / x[1])} else {pi + atan(x[2] / x[1])}
+
+x <- c(x = 10032.248972211251, y = 7946.7605350283875)
+cp <- setNames(as.data.frame(t(matrix(c(11286.7,8791.31,6367.77,3864.65,8625.6,1915.53,5147.34,8753.89,4547.67,2339.09), nrow = 2))), c("x", "y"))
+
+d <- cp[2,] - x
+a <- 4.37
+a_ncp <- p.angle(d) - a
 
 ## SPECIFIC GAME DATA
 df <- setNames(
@@ -18,17 +28,43 @@ df = df %>% group_by(game.id, player.id) %>%
         speed = sqrt(dx^2 + dy^2)
     )
 
-gid <- tail(unique(df$game.id), 2)[1]
+gid <- tail(unique(df$game.id), 1)[1]
 df.game <- df %>% filter(game.id == gid, turn < 1000)
 
-ggplot(df.game, aes(x, y, color = as.character(team), shape = as.character(player.id), size = lap)) + geom_point() + transition_time(turn) + ease_aes('linear')
+turns <- max(df.game$turn) + 1
+cps <- nrow(cp)
 
-ggplot(df.game, aes(x = x, y = y, group = interaction(game.id, player.id))) + geom_path() + geom_point(aes(shape = as.character(lap), color = as.character(team)), size = 4) + coord_fixed()
+df.cp <- do.call(rbind, lapply(0:(turns-1), function(t) {
+    data.frame(game.id = gid, turn=t, team = "cp", lap = 5, player.id = "cp", reward = NA, cp, dx = 0, dy = 0, speed = 0)
+})) %>%
+    select(game.id, turn, team, lap, player.id, x, y, reward, dx, dy, speed)
+
+test <- rbind(as.data.frame(df.game), df.cp)
+
+p <- ggplot(
+    df.game,
+    aes(x, y,
+        frame = turn,
+        color = speed, 
+        shape = as.factor(team),
+        size = lap
+        )
+) + geom_point() 
+
+ggplotly(p) %>% animation_opts(frame = 200)
+
+ggplot(df.game, aes(x = x, y = y, group = player.id)) +
+    geom_path() +
+    geom_point(aes(shape = as.character(lap), color = as.character(team)), size = 4) +
+    geom_point(data = cp, color="red", size=10, aes(group = NULL)) +
+    coord_fixed()
 
 ## df.meta <- setNames(read.csv("game.meta.csv", header=F), c("pid", "label", "age", "score", "nancestors", "nparents", "relative", "speed", "nbase", "alpha", "cluster", "bwc", "bws", "dqm", "dqstd"))
 
 ## POPULATION STATISTICS
-df.population <- setNames(read.csv("data/population.csv", header=F), c("epoch", "pid", "rank", "nancestors", "nparents", "score", "age", "treesize", "lrate"))
+## df.population <- setNames(read.csv("data/population.csv", header=F), c("epoch", "pid", "rank", "nancestors", "nparents", "score", "age", "treesize", "lrate"))
+
+df.population <- setNames(read.csv("data/population.csv", header=F), c("epoch", "pid", "rank", "nancestors", "nparents", "score", "age", "pid2", "label", "age2", "score2", "anc2", "par2", "treesize", "lrate"))
 
 rank.limit <- 10
 population.means <- df.population %>% 
@@ -41,8 +77,8 @@ population.means <- df.population %>%
         tree.std = sd(treesize),
         lrate.mean.per1000 = mean(1000 * lrate),
         lrate.std.per1000 = sd(1000 * lrate),
-        age.mean = mean(age),
-        age.std = sd(age)
+        age.mean.per10 = mean(10*age),
+        age.std.per10 = sd(10*age)
     ) %>% melt(id.vars = "epoch") %>%
     arrange(epoch)
 
@@ -54,7 +90,7 @@ ggplot(df.population %>% filter(epoch == max(epoch)), aes(x = rank, y = treesize
 ggplot(df.population %>% filter(epoch == max(epoch)), aes(x = rank, y = nancestors)) + geom_bin2d()
 
 ## pure train stats
-df.pure <- setNames(read.csv("pure_train.meta.csv", header=F), c("epoch", "pid", "label", "age", "score", "nancestors", "nparents", "relative", "speed", "treesize", "lrate"))
+df.pure <- setNames(read.csv("pure_train.meta.csv", header=F), c("epoch", "pid", "finished", "relative", "speed"))
 
 ## ggplot(df.pure, aes(x = epoch, y = speed)) + geom_point() + geom_smooth();
 
@@ -88,8 +124,8 @@ df.pure %>%
     group_by(era, pid) %>%
     summarize(
         avg.speed = mean(speed),
-        age = mean(age),
-        ntree = treesize[1]
+        ## age = mean(age),
+        ## ntree = treesize[1]
     ) %>%
     group_by(era) %>%
     arrange(-avg.speed) %>%
@@ -97,7 +133,7 @@ df.pure %>%
         speed.best = max(avg.speed),
         speed.q90 = quantile(avg.speed, probs = 0.9),
         speed.median = median(avg.speed),
-        best.ntree = ntree[1],
+        ## best.ntree = ntree[1],
         best.pid = pid[1],
         second.pid = pid[2],
         third.pid = pid[3],
@@ -110,15 +146,17 @@ df.meta <- setNames(
     c("epoch", "pid", "label", "age", "score", "nancestors", "nparents", "treesize", "lrate", "did.finish", "relative", "speed")
 )
 
-df.meta <- df.meta %>% mutate(win = as.numeric(relative >= 1))
+df.meta <- df.meta %>%
+    mutate(win = as.numeric(relative >= 1)) %>%
+    filter(epoch >= 59) ## introduction of new refbot and fix of scoring bug
 
 df.meta %>% tail
 
-ggplot(df.meta, aes(x = epoch, y = speed)) + geom_point() + geom_smooth()
-ggplot(df.meta, aes(x = epoch, y = relative)) + geom_point() + geom_smooth()
-ggplot(df.meta, aes(x = epoch, y = win)) + geom_smooth()
+ggplot(df.meta, aes(x = epoch, y = relative, color = as.factor(win))) + geom_point() + geom_smooth( aes(y = 2 * win, color=NULL)) + geom_hline(yintercept = 1) + ylim(c(-1,3))
 
-df.meta %>% mutate(lev = ceiling(gid/50)) %>% group_by(lev) %>% summarize(s = mean(speed), w = mean(win)) %>% data.frame
+ggplot(df.meta, aes(x = epoch, y = speed)) + geom_point() + geom_smooth()
+
+df.meta %>% mutate(lev = ceiling(epoch/10)) %>% group_by(lev) %>% summarize(s = mean(speed), w = mean(win)) %>% data.frame
 
 ## df.meta <- df.meta %>% filter(gid > max(gid) - 400)
 

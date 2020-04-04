@@ -1,3 +1,14 @@
+* todo
+** [done] refbot must be analyzed and fixed
+** [done] supervision must be based on games between teachers, not teacher vs candidate
+** [done] Ancestors and parents must be saved when serializing agents (updated serialize but not deserialize)
+** [done] Check if protection is ignored? Seems to always make 12 + 11 new agents?
+** [done] Check if new agents have a score advantage, or if tournament training hurts agents, since best agent always seems to be 1-2 years old
+** [done] preparation should use parent(s) as supervisor(s) when available
+** [done] preparation should implement a scheme to mix supervision with practice and reduce supervision over time
+** [done] preparation must set appropriate exploration rates
+** [done] tournament should be split into practice rounds with no scoring and real rounds
+** [done] tournament should set the same exploration rates for all players, high in practice rounds and low in real rounds
 * ideas
 ** Template structure
 *** Must create an abstract agent class so refbot and agent can run in the same game
