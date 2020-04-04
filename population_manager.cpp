@@ -1,3 +1,5 @@
+#include "population_manager.hpp"
+
 #include <cassert>
 #include <cmath>
 #include <iostream>
@@ -6,7 +8,6 @@
 
 #include "agent.hpp"
 #include "game_generator.hpp"
-#include "population_manager.hpp"
 #include "utility.hpp"
 
 using namespace std;
@@ -83,9 +84,6 @@ void population_manager::prepare_epoch(int epoch, game_generator_ptr gg) {
 }
 
 double mate_score(agent_ptr parent1, agent_ptr x) {
-  // x is protected so score is not reliable
-  if (x->was_protected) return 0;
-
   // direct descendant
   if (parent1->parents.count(x->id) || x->parents.count(parent1->id)) return 0;
 
@@ -103,9 +101,9 @@ void population_manager::evolve(game_generator_ptr gg) {
   check_gg(gg);
 
   // pop management parameters
-  int protected_age = 3;
+  int protected_age = 5;
   int protected_mut_age = 3;
-  float score_update_rate = 0.05;
+  float score_update_rate = 0.03;
 
   // remove unstable players
   for (int i = 0; i < pop.size(); i++) {
@@ -140,7 +138,6 @@ void population_manager::evolve(game_generator_ptr gg) {
   int n_protmut = 0;
   for (int i = nkeep; i < pop.size(); i++) {
     agent_ptr a = pop[i];
-    if (a->was_protected) player_buf.push_back(a);
 
     // update protection after adding agent so scores are calculated
     // before the agent is evaluated
@@ -152,13 +149,15 @@ void population_manager::evolve(game_generator_ptr gg) {
 
     a->was_protected = protect_progress || protect_child || protect_mutant;
 
+    // Maybe I'm just tired but we must allow the agent to be protected the first round, that's like the main point?
+    if (a->was_protected) player_buf.push_back(a);
+
     n_protmut += protect_mutant;
     n_protprog += protect_progress;
     n_protchild += protect_child;
   }
 
   int free_spots = popsize - player_buf.size();
-  int used_spots = 0;
 
   cout << "PM: keeping " << nkeep << ", protected " << n_protprog << " progressors, " << n_protmut << " mutants and " << n_protchild << " children" << endl;
 
@@ -174,13 +173,17 @@ void population_manager::evolve(game_generator_ptr gg) {
     });
 
     agent_ptr parent2 = ranked_sample(buf, 0.8);
+    agent_ptr child = parent1->mate(parent2);
 
-    return parent1->mate(parent2);
+    child->parent_buf = {parent1, parent2};
+    return child;
   };
 
   auto mutate_generator = [this, nkeep]() -> agent_ptr {
     int idx1 = rand_int(0, nkeep - 1);
-    return pop[idx1]->mutate();
+    agent_ptr child = pop[idx1]->mutate();
+    child->parent_buf = {pop[idx1]};
+    return child;
   };
 
   // mating

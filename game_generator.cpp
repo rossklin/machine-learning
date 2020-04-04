@@ -1,9 +1,12 @@
+
+#include "game_generator.hpp"
+
+#include <algorithm>
 #include <cassert>
 #include <set>
 
 #include "agent.hpp"
 #include "game.hpp"
-#include "game_generator.hpp"
 #include "tree_evaluator.hpp"
 #include "utility.hpp"
 
@@ -78,13 +81,29 @@ agent_ptr game_generator::prepared_player(agent_f gen, float plim) const {
     agent_ptr a = gen();
 
     for (int i = 0; i < 100; i++) {
-      a->set_exploration_rate(0.4 - 0.3 * i / (float)100);
+      bool supervizion = ((i * i) / 1000) % 2 == 0;
+      a->set_exploration_rate(0.5 - 0.2 * i / (float)100);
 
       // play and train
-      game_ptr g = team_bots_vs(a);
-      const auto res = g->play(i + 1);
+      vector<agent_ptr> pl;
+      if (supervizion) {
+        // prepare teams for supervized learning
+        if (a->parent_buf.size() > 0) {
+          int c = 0, n = a->parent_buf.size();
+          random_shuffle(a->parent_buf.begin(), a->parent_buf.end());
+          while (pl.size() < nr_of_teams) pl.push_back(a->parent_buf[c++ % n]);
+        } else {
+          pl = vector<agent_ptr>(nr_of_teams, refbot_generator());
+        }
 
-      for (auto pid : g->team_pids(a->team)) a->train(res.at(pid));  // look at own mistakes
+      } else {
+        // prepare teams for self practice
+        pl = vector<agent_ptr>(nr_of_teams, a);
+      }
+
+      game_ptr g = generate_starting_state(make_teams(pl));
+      const auto res = g->play(i + 1);
+      for (auto x : res) a->train(x.second);
 
       if (a->eval->complexity_penalty() < 1e-5) {
         // this agent has degenerated
@@ -100,8 +119,10 @@ agent_ptr game_generator::prepared_player(agent_f gen, float plim) const {
         continue;
       }
 
-      for (auto clone_pid : g->team_pids(a->team)) {
-        eval = 0.1 * g->score_simple(clone_pid) + 0.9 * eval;
+      if (!supervizion) {
+        for (auto clone_pid : hm_keys(g->players)) {
+          eval = 0.1 * g->score_simple(clone_pid) + 0.9 * eval;
+        }
       }
     }
 
