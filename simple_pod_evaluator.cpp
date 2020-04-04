@@ -10,8 +10,19 @@ double simple_pod_evaluator::evaluate(vec x) {
   double thrust = x[1];
   double a_ncp = x[4];
   double c_angle = x[0];
-  bool same_sign = signum(a_ncp) == signum(c_angle);
-  double res = thrust > 90 && same_sign;
+  double dist = x[9];
+  bool boost = x[2] > 0;
+
+  double target_angle = signum(a_ncp) * fmin(abs(a_ncp), angular_speed);
+  double angle_match = kernel(angle_difference(c_angle, target_angle), angular_speed / 3);
+
+  double target_thrust = 100 * angle_match;
+  double thrust_match = kernel(thrust - target_thrust, 20);
+
+  bool want_boost = dist > 4000 && angle_match > 0.95;
+  double boost_match = boost == want_boost;
+
+  return angle_match * thrust_match + boost_match;
 }
 
 bool simple_pod_evaluator::update(vec input, double output, int age) { return true; }
