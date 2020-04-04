@@ -45,5 +45,5 @@ $(BUILD_DIR)/%.o : %.cpp
 
 clean :
 	# This should remove all generated files.
-	-rm -rf $(BUILD_DIR)/{pure_train,run_arena} $(OBJ) $(DEP) data/*.csv pod_codingame.cpp
+	-rm -rf $(BUILD_DIR)/{pure_train,run_arena} $(OBJ) $(DEP) pod_codingame.cpp
 
