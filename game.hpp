@@ -13,6 +13,7 @@ class game {
   int max_turns;
   player_table players;
   hm<int, std::vector<record>> result_buf;
+  std::vector<agent_ptr> original_agents;
 
   game(player_table pl);
   virtual void initialize();
@@ -29,5 +30,5 @@ class game {
 
   hm<int, std::vector<record>> play(int epoch);
   choice_ptr select_choice(agent_ptr a);
-  std::vector<int> team_pids(int tid) const;
+  std::vector<int> team_clone_ids(int tid) const;
 };

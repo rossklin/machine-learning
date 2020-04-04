@@ -1,3 +1,5 @@
+#include "game.hpp"
+
 #include <cassert>
 #include <functional>
 #include <iostream>
@@ -5,7 +7,6 @@
 #include <vector>
 
 #include "agent.hpp"
-#include "game.hpp"
 #include "types.hpp"
 #include "utility.hpp"
 
@@ -51,7 +52,7 @@ void game::reset() {
   winner = -1;
 }
 
-vector<int> game::team_pids(int tid) const {
+vector<int> game::team_clone_ids(int tid) const {
   vector<int> res;
   for (auto x : players) {
     if (x.second->team == tid) res.push_back(x.first);

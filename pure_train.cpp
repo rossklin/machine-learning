@@ -1,4 +1,5 @@
 #include <omp.h>
+
 #include <cassert>
 #include <cmath>
 #include <fstream>
@@ -62,7 +63,7 @@ void pure_train() {
 
       auto res = g->play(epoch);
 
-      for (auto pid : g->team_pids(a->team)) a->train(res.at(pid));
+      for (auto pid : g->team_clone_ids(a->team)) a->train(res.at(pid));
 
       a->age++;
 

@@ -1,3 +1,5 @@
+#include "pod_game.hpp"
+
 #include <cassert>
 #include <cmath>
 #include <fstream>
@@ -7,7 +9,6 @@
 #include "agent.hpp"
 #include "evaluator.hpp"
 #include "pod_agent.hpp"
-#include "pod_game.hpp"
 #include "utility.hpp"
 
 using namespace std;
@@ -200,8 +201,8 @@ std::string pod_game::end_stats() {
   string comma = ",";
 
   auto h = htable();
-  int pid = team_pids(0).front();
-  int pid2 = team_pids(1).front();
+  int pid = team_clone_ids(0).front();
+  int pid2 = team_clone_ids(1).front();
 
   ss << finished() << comma << (h[pid] / h[pid2]) << comma << (h[pid] / turns_played);
 
