@@ -155,7 +155,13 @@ void agent::deserialize(std::stringstream &ss) {
 
 choice_ptr agent::select_choice(game_ptr g) {
   auto opts = g->generate_choices(shared_from_this());
-  for (auto opt : opts) opt->value_buf = evaluate_choice(g->vectorize_choice(opt, id));
+  vec s = g->vectorize_state(id);
+  for (auto opt : opts) {
+    vec x = g->vectorize_choice(opt, id);
+    x.insert(x.end(), s.begin(), s.end());
+    opt->value_buf = evaluate_choice(x);
+  }
+
   return csel.select(opts);
 }
 

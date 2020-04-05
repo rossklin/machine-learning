@@ -45,7 +45,7 @@ void pod_game::initialize() {
     return {start, {0, 0}, a01, 0, 0, 0, 1, 0};
   };
 
-  for (auto x : get_typed_agents()) x.second->data = gen_pod();
+  for (auto x : typed_agents) x.second->data = gen_pod();
 }
 
 int pod_choice::vector_dim() { return 4; }
@@ -53,20 +53,15 @@ bool pod_choice::validate() { return true; }
 
 pod_game::pod_game(player_table pl) : game(pl) {
   max_turns = 300;
-}
-
-hm<int, pod_agent::ptr> pod_game::get_typed_agents() {
-  hm<int, pod_agent::ptr> res;
   for (auto x : players) {
-    res[x.first] = static_pointer_cast<pod_agent>(x.second);
+    typed_agents[x.first] = static_pointer_cast<pod_agent>(x.second);
   }
-  return res;
 }
 
 record_table pod_game::increment() {
   record_table res;
   hm<int, double> htab_before = htable();
-  auto agents = get_typed_agents();
+  auto agents = typed_agents;
 
   auto process_pod = [this](shared_ptr<pod_choice> x, pod_data *p) {
   };
@@ -77,7 +72,7 @@ record_table pod_game::increment() {
     pod_agent::ptr p = x.second;
 
     shared_ptr<pod_choice> c = static_pointer_cast<pod_choice>(p->select_choice(shared_from_this()));
-    res[pid].input = vectorize_choice(c, pid);
+    res[pid].input = vectorize_input(c, pid);
     res[pid].output = p->evaluate_choice(res[x.first].input);
 
     p->data.a += fmin(angular_speed, abs(c->angle)) * signum(c->angle);
@@ -159,7 +154,7 @@ record_table pod_game::increment() {
     double own = tab[pid];
     double res = INFINITY;
     for (auto x : tab) {
-      if (players[x.first]->team != players[pid]->team) res = fmin(res, own - x.second);
+      if (players[x.first]->team != players.at(pid)->team) res = fmin(res, own - x.second);
     }
 
     assert(isfinite(res));
@@ -181,7 +176,7 @@ record_table pod_game::increment() {
   if (enable_output) {
     // write csv output
     fstream f("data/game.csv", ios::app);
-    for (auto x : get_typed_agents()) {
+    for (auto x : typed_agents) {
       int pid = x.first;
       pod_agent::ptr p = x.second;
       f << game_id << "," << turns_played << "," << p->team << "," << p->data.lap << "," << pid << "," << p->data.x.x << ", " << p->data.x.y << ", " << res[pid].reward << endl;
@@ -276,26 +271,22 @@ std::vector<choice_ptr> pod_game::generate_choices(agent_ptr p_base) {
   return res;
 }
 
-vec pod_game::vectorize_choice(choice_ptr c_base, int pid) {
-  auto c = static_pointer_cast<pod_choice>(c_base);
+vec pod_game::vectorize_state(int pid) const {
   assert(players.count(pid) > 0);
   vector<double> x;
-  pod_data a = get_typed_agents().at(pid)->data;
+  pod_data a = typed_agents.at(pid)->data;
 
   auto relad = [&x, a](point p, point q) {
     x.push_back(angle_difference(point_angle(q - p), a.a));
     x.push_back(distance(p, q));
   };
 
-  // choice data
-  x = {c->angle, c->thrust, (double)c->boost, (double)c->shield};  // 0-3
-
   // feature: direction towards next checkpoint
   double a_ncp = angle_difference(point_angle(get_checkpoint(a.passed_checkpoint + 1) - a.x), a.a);
   x.push_back(a_ncp);  // 4
 
   // team role index
-  x.push_back(players[pid]->team_index);  // 5
+  x.push_back(players.at(pid)->team_index);  // 5
 
   // current angle and speed
   relad({0, 0}, a.v);  // 6-7
@@ -322,16 +313,15 @@ vec pod_game::vectorize_choice(choice_ptr c_base, int pid) {
   };
 
   // add team members
-  auto typed_ps = get_typed_agents();
-  for (auto y : typed_ps) {
-    if (y.first != pid && y.second->team == players[pid]->team) {
+  for (auto y : typed_agents) {
+    if (y.first != pid && y.second->team == players.at(pid)->team) {
       add_other(y.second->data);  // 13-22
     }
   }
 
   // add opponents
-  for (auto y : typed_ps) {
-    if (y.first != pid && y.second->team != players[pid]->team) {
+  for (auto y : typed_agents) {
+    if (y.first != pid && y.second->team != players.at(pid)->team) {
       add_other(y.second->data);  // 23-42
     }
   }
@@ -339,10 +329,15 @@ vec pod_game::vectorize_choice(choice_ptr c_base, int pid) {
   return x;
 }
 
+vec pod_game::vectorize_choice(choice_ptr c_base, int pid) const {
+  auto c = static_pointer_cast<pod_choice>(c_base);
+  return {c->angle, c->thrust, (double)c->boost, (double)c->shield};
+}
+
 // protected members
 
 double pod_game::pod_distance_travelled(int pid) {
-  pod_data p = get_typed_agents().at(pid)->data;
+  pod_data p = typed_agents.at(pid)->data;
   hm<int, double> dtab;
 
   double dsum = 0;
@@ -365,7 +360,7 @@ hm<int, double> pod_game::ttable() {
   hm<int, double> ttab;
 
   for (auto p : players) ttab[p.second->team] = -INFINITY;
-  for (auto p : get_typed_agents()) ttab[p.second->team] = fmax(ttab[p.second->team], pod_distance_travelled(p.first));
+  for (auto p : typed_agents) ttab[p.second->team] = fmax(ttab[p.second->team], pod_distance_travelled(p.first));
 
   return ttab;
 }
@@ -378,4 +373,4 @@ hm<int, double> pod_game::htable() {
   return htab;
 }
 
-point pod_game::get_checkpoint(int idx) { return checkpoint[modulo(idx, (int)checkpoint.size())]; }
+point pod_game::get_checkpoint(int idx) const { return checkpoint.at(modulo(idx, (int)checkpoint.size())); }

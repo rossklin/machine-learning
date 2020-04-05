@@ -52,7 +52,7 @@ int game_generator::choice_dim() const {
   game_ptr g = team_bots_vs(refbot_generator());
   agent_ptr p = g->players.begin()->second;
   choice_ptr c = p->select_choice(g);
-  vec input = g->vectorize_choice(c, p->id);
+  vec input = g->vectorize_input(c, p->id);
   return input.size();
 }
 

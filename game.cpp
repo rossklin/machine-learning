@@ -59,3 +59,10 @@ vector<int> game::team_clone_ids(int tid) const {
   }
   return res;
 }
+
+vec game::vectorize_input(choice_ptr c, int pid) const {
+  vec s = vectorize_state(pid);
+  vec x = vectorize_choice(c, pid);
+  x.insert(x.end(), s.begin(), s.end());
+  return x;
+}

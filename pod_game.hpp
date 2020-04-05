@@ -38,8 +38,8 @@ class pod_game : public game, public std::enable_shared_from_this<pod_game> {
   int run_laps;
   std::vector<point> checkpoint;
 
-  point get_checkpoint(int idx);
-  hm<int, pod_agent::ptr> get_typed_agents();
+  point get_checkpoint(int idx) const;
+  hm<int, pod_agent::ptr> typed_agents;
 
  public:
   pod_game(player_table pl);
@@ -51,6 +51,7 @@ class pod_game : public game, public std::enable_shared_from_this<pod_game> {
   double score_simple(int pid);
   void reset();
   std::vector<choice_ptr> generate_choices(agent_ptr a);
-  vec vectorize_choice(choice_ptr c, int pid);
+  vec vectorize_choice(choice_ptr c, int pid) const override;
+  vec vectorize_state(int pid) const override;
   double winner_reward(int epoch);
 };
