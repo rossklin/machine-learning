@@ -24,7 +24,7 @@ tree_evaluator::tree_evaluator() : evaluator() {
   tag = "tree";
 }
 
-hm<string, t_unary> tree_evaluator::unary_ops() {
+const hm<string, t_unary> &tree_evaluator::unary_ops() {
   static hm<string, t_unary> unary_op;
 
   MutexType m;
@@ -53,7 +53,7 @@ hm<string, t_unary> tree_evaluator::unary_ops() {
   return unary_op;
 }
 
-hm<string, t_binary> tree_evaluator::binary_ops() {
+const hm<string, t_binary> &tree_evaluator::binary_ops() {
   static hm<string, t_binary> binary_op;
 
   MutexType m;
@@ -312,9 +312,9 @@ double tree_evaluator::tree::evaluate(const vec &x) {
   } else if (class_id == INPUT_TREE) {
     val = x[input_index];
   } else if (class_id == UNARY_TREE) {
-    val = unary_ops()[fname].f(subtree[0]->evaluate(x));
+    val = unary_ops().at(fname).f(subtree[0]->evaluate(x));
   } else if (class_id == BINARY_TREE) {
-    val = binary_ops()[fname].f(subtree[0]->evaluate(x), subtree[1]->evaluate(x));
+    val = binary_ops().at(fname).f(subtree[0]->evaluate(x), subtree[1]->evaluate(x));
   } else if (class_id == WEIGHT_TREE) {
     val = 0;
     for (auto a : subtree) val += a->evaluate(x);
@@ -426,13 +426,13 @@ void tree_evaluator::tree::calculate_dw(double delta, double alpha, double gamma
   if (class_id == BINARY_TREE) {
     double y1 = subtree[0]->resbuf;
     double y2 = subtree[1]->resbuf;
-    double left_deriv = binary_ops()[fname].dfdx1(y1, y2);
-    double right_deriv = binary_ops()[fname].dfdx2(y1, y2);
+    double left_deriv = binary_ops().at(fname).dfdx1(y1, y2);
+    double right_deriv = binary_ops().at(fname).dfdx2(y1, y2);
     subtree[0]->calculate_dw(delta, w * left_deriv * alpha, gamma, stable);
     subtree[1]->calculate_dw(delta, w * right_deriv * alpha, gamma, stable);
   } else if (class_id == UNARY_TREE) {
     double y = subtree[0]->resbuf;
-    double deriv = unary_ops()[fname].fprime(y);
+    double deriv = unary_ops().at(fname).fprime(y);
     subtree[0]->calculate_dw(delta, w * deriv * alpha, gamma, stable);
   } else if (class_id == WEIGHT_TREE) {
     for (auto a : subtree) {

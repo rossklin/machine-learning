@@ -43,8 +43,8 @@ class tree_evaluator : public evaluator {
     void deserialize(std::stringstream &ss);
   };
 
-  static hm<std::string, t_unary> unary_ops();
-  static hm<std::string, t_binary> binary_ops();
+  static const hm<std::string, t_unary> &unary_ops();
+  static const hm<std::string, t_binary> &binary_ops();
 
  public:
   tree::ptr root;
