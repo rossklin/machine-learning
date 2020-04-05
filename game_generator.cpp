@@ -79,6 +79,9 @@ agent_ptr game_generator::prepared_player(agent_f gen, float plim) const {
   for (int t = 0; t < prep_npar; t++) {
     float eval = 0;
     agent_ptr a = gen();
+    while (set_difference(required_inputs(), a->eval->list_inputs()).size() > 0) {
+      a = gen();
+    }
 
     for (int i = 0; i < 100; i++) {
       bool supervizion = ((i * i) / 1000) % 2 == 0;

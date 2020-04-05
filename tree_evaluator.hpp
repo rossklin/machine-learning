@@ -41,6 +41,7 @@ class tree_evaluator : public evaluator {
     void mutate(int dim);  // mutate in place
     std::string serialize() const;
     void deserialize(std::stringstream &ss);
+    std::set<int> list_inputs() const;
   };
 
   static const hm<std::string, t_unary> &unary_ops();
@@ -67,4 +68,5 @@ class tree_evaluator : public evaluator {
   evaluator_ptr clone() const;
   double complexity_penalty() const;
   double complexity() const;
+  std::set<int> list_inputs() const;
 };

@@ -1,7 +1,8 @@
+#include "pod_game_generator.hpp"
+
 #include <cassert>
 
 #include "pod_game.hpp"
-#include "pod_game_generator.hpp"
 
 using namespace std;
 
@@ -23,4 +24,9 @@ game_ptr pod_game_generator::generate_starting_state(std::vector<agent_ptr> p) c
   for (auto x : tc) assert(x.second == ppt);
 
   return g;
+}
+
+// require the first 5 inputs be included for a functioning evaluator
+set<int> pod_game_generator::required_inputs() const {
+  return {0, 1, 2, 4, 9};
 }

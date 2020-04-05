@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <memory>
+#include <set>
 #include <string>
 
 #include "types.hpp"
@@ -25,4 +26,5 @@ class evaluator {
   virtual evaluator_ptr clone() const = 0;
   virtual double complexity_penalty() const = 0;
   virtual double complexity() const = 0;
+  virtual std::set<int> list_inputs() const = 0;
 };

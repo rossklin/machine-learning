@@ -16,4 +16,5 @@ class simple_pod_evaluator : public evaluator {
   std::string status_report() const override;
   double complexity_penalty() const override;
   double complexity() const;
+  std::set<int> list_inputs() const;
 };

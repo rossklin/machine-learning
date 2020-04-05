@@ -1,5 +1,7 @@
 #pragma once
 
+#include <set>
+
 #include "types.hpp"
 
 class game_generator {
@@ -13,6 +15,7 @@ class game_generator {
   game_generator(int teams, int ppt, agent_f refbot_generator);
 
   virtual game_ptr generate_starting_state(std::vector<agent_ptr> p) const = 0;
+  virtual std::set<int> required_inputs() const = 0;
 
   agent_ptr prepared_player(agent_f gen, float plim) const;
   std::vector<agent_ptr> prepare_n(agent_f gen, int n, float plim) const;

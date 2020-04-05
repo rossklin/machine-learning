@@ -457,6 +457,18 @@ void tree_evaluator::tree::calculate_dw(double delta, double alpha, double gamma
   ssdw += pow(dwbuf, 2);
 }
 
+set<int> tree_evaluator::tree::list_inputs() const {
+  if (class_id == INPUT_TREE) {
+    return {input_index};
+  } else if (subtree.size() > 0) {
+    set<int> res;
+    for (auto t : subtree) res = set_union(res, t->list_inputs());
+    return res;
+  } else {
+    return {};
+  }
+}
+
 evaluator_ptr tree_evaluator::clone() const {
   shared_ptr<tree_evaluator> e(new tree_evaluator(*this));
   e->root = root->clone();
@@ -666,4 +678,8 @@ string tree_evaluator::status_report() const {
   string sep = ",";
   ss << root->count_trees() << sep << learning_rate;
   return ss.str();
+}
+
+set<int> tree_evaluator::list_inputs() const {
+  return root->list_inputs();
 }

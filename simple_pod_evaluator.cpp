@@ -1,4 +1,5 @@
 #include "simple_pod_evaluator.hpp"
+
 #include "pod_game.hpp"
 #include "utility.hpp"
 
@@ -36,3 +37,7 @@ void simple_pod_evaluator::initialize(input_sampler sampler, int cdim) {}
 std::string simple_pod_evaluator::status_report() const { return "dummy status"; }
 double simple_pod_evaluator::complexity_penalty() const { return 0; }
 double simple_pod_evaluator::complexity() const { return 0; }
+
+set<int> simple_pod_evaluator::list_inputs() const {
+  return {0, 1, 2, 4, 9};
+}
