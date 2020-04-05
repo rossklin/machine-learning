@@ -1,4 +1,6 @@
 * todo
+** Define required inputs so agent generator can avoid testing obvious failures
+** Add a retirement home
 ** [done] refbot must be analyzed and fixed
 ** [done] supervision must be based on games between teachers, not teacher vs candidate
 ** [done] Ancestors and parents must be saved when serializing agents (updated serialize but not deserialize)

@@ -26,20 +26,25 @@ df = df %>% group_by(game.id, player.id) %>%
         dx = c(0, diff(x)),
         dy = c(0, diff(y)),
         speed = sqrt(dx^2 + dy^2)
-    )
+    ) %>%
+    group_by
 
-gid <- tail(unique(df$game.id), 1)[1]
-df.game <- df %>% filter(game.id == gid, turn < 1000)
+## hack: drop last ten games to get rank N player
+N <- 1
+gid <- head(tail(df$game.id, 5*N+1), 1)
 
-turns <- max(df.game$turn) + 1
-cps <- nrow(cp)
+df.game <- df %>%
+    filter(game.id == gid)
 
-df.cp <- do.call(rbind, lapply(0:(turns-1), function(t) {
-    data.frame(game.id = gid, turn=t, team = "cp", lap = 5, player.id = "cp", reward = NA, cp, dx = 0, dy = 0, speed = 0)
-})) %>%
-    select(game.id, turn, team, lap, player.id, x, y, reward, dx, dy, speed)
+## turns <- max(df.game$turn) + 1
+## cps <- nrow(cp)
 
-test <- rbind(as.data.frame(df.game), df.cp)
+## df.cp <- do.call(rbind, lapply(0:(turns-1), function(t) {
+##     data.frame(game.id = gid, turn=t, team = "cp", lap = 5, player.id = "cp", reward = NA, cp, dx = 0, dy = 0, speed = 0)
+## })) %>%
+##     select(game.id, turn, team, lap, player.id, x, y, reward, dx, dy, speed)
+
+## test <- rbind(as.data.frame(df.game), df.cp)
 
 p <- ggplot(
     df.game,
@@ -51,7 +56,7 @@ p <- ggplot(
         )
 ) + geom_point() 
 
-ggplotly(p) %>% animation_opts(frame = 200)
+ggplotly(p)
 
 ggplot(df.game, aes(x = x, y = y, group = player.id)) +
     geom_path() +
@@ -67,7 +72,7 @@ ggplot(df.game, aes(x = x, y = y, group = player.id)) +
 df.population <- setNames(read.csv("data/population.csv", header=F), c("epoch", "pid", "rank", "nancestors", "nparents", "score", "age", "pid2", "label", "age2", "score2", "anc2", "par2", "treesize", "lrate"))
 
 rank.limit <- 10
-population.means <- df.population %>% 
+population.means <- df.population %>%
     group_by(epoch) %>%
     filter(rank < rank.limit) %>%
     summarize(
@@ -143,16 +148,15 @@ df.pure %>%
 
 df.meta <- setNames(
     read.csv("data/game.meta.csv", header=F),
-    c("epoch", "pid", "label", "age", "score", "nancestors", "nparents", "treesize", "lrate", "did.finish", "relative", "speed")
+    c("epoch", "rank", "pid", "label", "age", "score", "nancestors", "nparents", "treesize", "lrate", "did.finish", "relative", "speed")
 )
 
 df.meta <- df.meta %>%
-    mutate(win = as.numeric(relative >= 1)) %>%
-    filter(epoch >= 59) ## introduction of new refbot and fix of scoring bug
+    mutate(win = as.numeric(relative >= 1)) 
 
-df.meta %>% tail
+df.meta %>% filter(rank==1) %>% tail
 
-ggplot(df.meta, aes(x = epoch, y = relative, color = as.factor(win))) + geom_point() + geom_smooth( aes(y = 2 * win, color=NULL)) + geom_hline(yintercept = 1) + ylim(c(-1,3))
+ggplot(df.meta, aes(x = epoch, y = relative, shape = as.factor(did.finish), color = as.factor(rank), group = as.factor(rank))) + geom_point() + geom_smooth( aes(y = 2 * win, shape = NULL)) + geom_hline(yintercept = 1)
 
 ggplot(df.meta, aes(x = epoch, y = speed)) + geom_point() + geom_smooth()
 
