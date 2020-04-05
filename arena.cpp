@@ -1,4 +1,7 @@
+#include "arena.hpp"
+
 #include <omp.h>
+
 #include <cassert>
 #include <cstring>
 #include <fstream>
@@ -7,7 +10,6 @@
 #include <vector>
 
 #include "agent.hpp"
-#include "arena.hpp"
 #include "game.hpp"
 #include "game_generator.hpp"
 #include "population_manager.hpp"
@@ -35,14 +37,16 @@ void write_stats(int epoch, game_generator_ptr ggn, population_manager_ptr pop) 
 
   // reference game
   stringstream ss;
-  for (int j = 0; j < 3; j++) {
-    agent_ptr a = pop->pop[0];
-    game_ptr gr = ggn->team_bots_vs(a);
+  for (int rank = 0; rank < 3; rank++) {
+    for (int j = 0; j < 5; j++) {
+      agent_ptr a = pop->pop[rank];
+      game_ptr gr = ggn->team_bots_vs(a);
 
-    gr->enable_output = true;
-    gr->play(epoch);
+      gr->enable_output = true;
+      gr->play(epoch);
 
-    ss << epoch << comma << a->status_report() << comma << gr->end_stats() << endl;
+      ss << epoch << comma << rank << comma << a->status_report() << comma << gr->end_stats() << endl;
+    }
   }
 
   string xmeta = ss.str();
