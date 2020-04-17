@@ -17,6 +17,20 @@ using namespace std;
 
 int agent::idc = 0;
 
+training_stats::training_stats() {
+  rel_change_mean = 0;
+  rel_change_max = 0;
+  rate_zero = 0;
+  rate_accurate = 0;
+  rate_correct_sign = 0;
+  rate_successfull = 0;
+  output_change = 0;
+}
+
+void auto_update(double &x, double t, double r) {
+  x = r * t + (1 - r) * x;
+}
+
 string serialize_agent(agent_ptr a) {
   stringstream ss;
   ss << a->class_id << sep << a->serialize();
@@ -58,21 +72,33 @@ agent::agent() : csel(0.2) {
   mut_age = 0;
 }
 
-void agent::train(vector<record> results) {
+void agent::train(vector<record> results, input_sampler isam) {
   int n = results.size();
   double gamma = 1;
+  int ntest = 100;
+  vector<vec> test_inputs(ntest);
+  vector<double> test_outputs(ntest);
+  for (int i = 0; i < ntest; i++) {
+    test_inputs[i] = isam();
+    test_outputs[i] = eval->evaluate(test_inputs[i]);
+  }
 
   for (int i = n - 2; i >= 0; i--) {
     float r = results[i].reward;
     results[i].sum_future_rewards = r + gamma * results[i + 1].sum_future_rewards;
   }
 
-  int num_correct = 0, num_zero = 0, num_bad = 0, num_success = 0;
+  double num_correct = 0, num_zero = 0, num_bad = 0, num_success = 0, num_accurate = 0;
+  double rel_change_max = 0, rel_change_sum = 0;
   for (auto y : results) {
     double target = y.sum_future_rewards;
     double old_output = eval->evaluate(y.input);
+    double rel_change;
 
-    num_success += eval->update(y.input, target, age);
+    num_success += eval->update(y.input, target, age, rel_change);
+
+    rel_change_max = max(rel_change, rel_change_max);
+    rel_change_sum += rel_change;
 
     double new_output = eval->evaluate(y.input);
     double change = new_output - old_output;
@@ -81,9 +107,30 @@ void agent::train(vector<record> results) {
     num_correct += signum(change) == signum(desired_change);
     num_bad += signum(change) && signum(change) != signum(desired_change);
     num_zero += signum(change) == 0;
+    num_accurate += abs(new_output - target) < abs(old_output - target);
   }
 
   if (num_success == 0) eval->stable = false;  // evaluator can no longer update
+
+  vector<double> test_outputs2(ntest), diffs(ntest);
+  for (int i = 0; i < ntest; i++) {
+    test_outputs2[i] = eval->evaluate(test_inputs[i]);
+    diffs[i] = test_outputs2[i] - test_outputs[i];
+  }
+  double output_change = l2norm(diffs) / l2norm(test_outputs);
+
+  // update training stats
+  double tsrate = 0.005;
+  tstats.rel_change_max = max((1 - tsrate) * tstats.rel_change_max, rel_change_max);
+  auto_update(tstats.rel_change_mean, rel_change_sum / n, tsrate);
+  auto_update(tstats.rate_accurate, num_accurate / n, tsrate);
+  auto_update(tstats.rate_correct_sign, num_correct / n, tsrate);
+  auto_update(tstats.rate_successfull, num_success / n, tsrate);
+  auto_update(tstats.rate_zero, num_zero / n, tsrate);
+  auto_update(tstats.output_change, output_change, tsrate);
+
+  age++;
+  mut_age++;
 }
 
 bool agent::evaluator_stability() const {
@@ -173,7 +220,11 @@ string agent::status_report() const {
   stringstream ss;
   string comma = ",";
 
-  ss << id << comma << label << comma << age << comma << score << comma << ancestors.size() << comma << parents.size() << comma << eval->status_report();
+  ss << id << comma << label << comma << age << comma
+     << score << comma << ancestors.size() << comma << parents.size() << comma
+     << tstats.rel_change_mean << comma << tstats.rel_change_max << comma << tstats.output_change << comma
+     << tstats.rate_zero << comma << tstats.rate_successfull << comma << tstats.rate_accurate << comma << tstats.rate_correct_sign << comma
+     << eval->status_report();
 
   return ss.str();
 }

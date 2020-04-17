@@ -14,10 +14,11 @@ using namespace std;
 void random_tournament::run(population_manager_ptr pm, game_generator_ptr gg, int epoch) {
   int game_rounds = 50;
   int practice_rounds = 20;
-  float score_update_rate = 0.05;
+  float score_update_rate = 0.1;
   int ppt = gg->ppt;
   int tpg = gg->nr_of_teams;
   int ngames = pm->popsize / tpg;  // one agent is used to generate each team
+  input_sampler isam = gg->generate_input_sampler();
 
   pm->check_gg(gg);
 
@@ -57,7 +58,12 @@ void random_tournament::run(population_manager_ptr pm, game_generator_ptr gg, in
     for (int i = 0; i < pm->popsize; i++) {
       agent_ptr a = pm->pop[i];
       game_ptr g = game_record[a->assigned_game];
-      for (auto pid : g->team_clone_ids(a->team)) a->train(g->result_buf.at(pid));
+      if (practice) {
+        // Let's compromize and look at both teams' data in practice rounds
+        for (auto res : g->result_buf) a->train(res.second, isam);
+      } else {
+        for (auto pid : g->team_clone_ids(a->team)) a->train(g->result_buf.at(pid), isam);
+      }
     }
 
     // do not update scores if this is a practice round
@@ -70,7 +76,7 @@ void random_tournament::run(population_manager_ptr pm, game_generator_ptr gg, in
       vector<int> clone_ids = g->team_clone_ids(p->team);
 
       // update simple score
-      double a = score_update_rate;
+      double a = score_update_rate / game_rounds;
       for (auto pid : clone_ids) p->simple_score = a * g->score_simple(pid) + (1 - a) * p->simple_score;
 
       // force game to select a winner by heuristic if the game was a tie

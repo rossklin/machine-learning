@@ -57,7 +57,8 @@ class tree_evaluator : public evaluator {
   tree_evaluator();
   tree_evaluator(int depth);
   double evaluate(vec x);  // modifies resbuf
-  bool update(vec input, double output, int age);
+  bool update(vec input, double output, int age, double &rel_change);
+  void prune();
   evaluator_ptr mate(evaluator_ptr partner) const;
   evaluator_ptr mutate() const;
   std::string serialize() const;

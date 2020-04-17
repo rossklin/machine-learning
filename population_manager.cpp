@@ -7,6 +7,7 @@
 #include <string>
 
 #include "agent.hpp"
+#include "evaluator.hpp"
 #include "game_generator.hpp"
 #include "utility.hpp"
 
@@ -35,9 +36,9 @@ void population_manager::deserialize(stringstream &ss) {
 
 string population_manager::pop_stats(string row_prefix) const {
   stringstream ss;
-  string sep = ",";
+  string comma = ",";
   for (int i = 0; i < pop.size(); i++) {
-    ss << row_prefix << sep << pop[i]->id << sep << (i + 1) << sep << pop[i]->ancestors.size() << sep << pop[i]->parents.size() << sep << pop[i]->score << sep << pop[i]->age << sep << pop[i]->status_report() << endl;
+    ss << row_prefix << comma << (i + 1) << comma << pop[i]->status_report() << endl;
   }
   return ss.str();
 }
@@ -203,9 +204,8 @@ void population_manager::evolve(game_generator_ptr gg) {
 
   // age players
   for (auto x : pop) {
-    x->age++;
-    x->mut_age++;
     x->score *= (1 - score_update_rate);
+    x->eval->prune();
   }
 
   // sort population again

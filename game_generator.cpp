@@ -74,6 +74,7 @@ function<vec()> game_generator::generate_input_sampler() const {
 // Let #npar bots play 100 games, select those which pass score limit and then select the best one
 agent_ptr game_generator::prepared_player(agent_f gen, float plim) const {
   vector<agent_ptr> buf(prep_npar);
+  input_sampler isam = generate_input_sampler();
 
 #pragma omp parallel for
   for (int t = 0; t < prep_npar; t++) {
@@ -106,7 +107,7 @@ agent_ptr game_generator::prepared_player(agent_f gen, float plim) const {
 
       game_ptr g = generate_starting_state(make_teams(pl));
       const auto res = g->play(i + 1);
-      for (auto x : res) a->train(x.second);
+      for (auto x : res) a->train(x.second, isam);
 
       if (a->eval->complexity_penalty() < 1e-5) {
         // this agent has degenerated

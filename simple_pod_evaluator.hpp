@@ -6,7 +6,8 @@
 class simple_pod_evaluator : public evaluator {
  public:
   double evaluate(vec x) override;
-  bool update(vec input, double output, int age) override;
+  bool update(vec input, double output, int age, double &rel_change) override;
+  void prune() override;
   evaluator_ptr mate(evaluator_ptr partner) const override;
   evaluator_ptr mutate() const override;
   evaluator_ptr clone() const override;

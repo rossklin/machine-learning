@@ -12,6 +12,18 @@ enum agent_class {
   POD_AGENT
 };
 
+struct training_stats {
+  double rel_change_mean;
+  double rel_change_max;
+  double rate_successfull;
+  double rate_accurate;
+  double rate_zero;
+  double rate_correct_sign;
+  double output_change;
+
+  training_stats();
+};
+
 std::string serialize_agent(agent_ptr a);
 agent_ptr deserialize_agent(std::stringstream &ss);
 
@@ -34,6 +46,9 @@ class agent : public std::enable_shared_from_this<agent> {
   bool was_protected;
   int age;
   int mut_age;
+
+  training_stats tstats;
+
   std::string label;
   std::set<int> parents;
   std::set<int> ancestors;
@@ -49,7 +64,7 @@ class agent : public std::enable_shared_from_this<agent> {
   virtual agent_ptr mutate() const;
 
   // modifiers
-  virtual void train(std::vector<record> records);
+  virtual void train(std::vector<record> records, input_sampler isam);
   virtual void set_exploration_rate(float r);
   virtual void initialize_from_input(input_sampler s, int choice_dim);
 

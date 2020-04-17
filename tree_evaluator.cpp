@@ -288,7 +288,7 @@ bool tree_evaluator::tree::loop_free(int lev) {
 }
 
 void tree_evaluator::tree::prune() {
-  if (w == 0) {
+  if (w == 0 || !isfinite(w)) {
     subtree.clear();
     class_id = CONSTANT_TREE;
     const_value = 0;
@@ -479,13 +479,18 @@ double tree_evaluator::evaluate(vec x) {
   return root->evaluate(x);
 }
 
-bool tree_evaluator::update(vec input, double output, int age) {
+void tree_evaluator::prune() {
+  root->prune();
+}
+
+bool tree_evaluator::update(vec input, double output, int age, double &rel_change) {
 #if VERBOSE
   // debug
   vec printbuf(input.begin(), input.begin() + 5);
   cout << "Update: input = [" << printbuf << "]" << endl;
 #endif
 
+  rel_change = 0;
   double current = evaluate(input);
   double delta = output - current;
 
@@ -496,18 +501,20 @@ bool tree_evaluator::update(vec input, double output, int age) {
   double dwlen = sqrt(root->ssdw);
   if (dwlen == 0) return false;
 
-  double time_scale = 1 / (log(age + 1) + 1);
+  double time_scale = 1e-3 / sqrt(age + 1);
   double step = learning_rate * time_scale;  // preferred step is size of gradient
-  double limit = 0.001 * time_scale;         // don't allow stepping more than 1% of weight vector length
+  double limit = 0.001 * time_scale;         // don't allow stepping more than .1% of weight vector length
 
   if (step * dwlen > limit * wlen) {
     step = limit * wlen / dwlen;
   }
 
+  rel_change = step * dwlen / wlen;
+
   root->apply_dw(step);
 
   // remove subtrees where the weight was reduced to zero
-  root->prune();
+  prune();
 
   // scale down weights if too large
   wlen = sqrt(root->ssw);
@@ -524,6 +531,8 @@ bool tree_evaluator::update(vec input, double output, int age) {
 #endif
 
     root->scale_weights(weight_limit / wlen);
+    prune();
+
     assert(sqrt(root->ssw) <= 1.1 * weight_limit);
   }
 

@@ -26,7 +26,12 @@ double simple_pod_evaluator::evaluate(vec x) {
   return angle_match * thrust_match + boost_match;
 }
 
-bool simple_pod_evaluator::update(vec input, double output, int age) { return true; }
+bool simple_pod_evaluator::update(vec input, double output, int age, double &rel_change) {
+  rel_change = 0;
+  return true;
+}
+
+void simple_pod_evaluator::prune() {}
 
 evaluator_ptr simple_pod_evaluator::mate(evaluator_ptr partner) const { return evaluator_ptr(new simple_pod_evaluator); }
 evaluator_ptr simple_pod_evaluator::mutate() const { return evaluator_ptr(new simple_pod_evaluator); }
