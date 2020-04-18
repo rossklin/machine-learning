@@ -10,6 +10,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "types.hpp"
+
 const std::string sep = " ";
 const std::string comma = ",";
 
@@ -25,6 +27,8 @@ struct MutexType {
  public:
   omp_lock_t lock;
 };
+
+double foptim(double x0, std::function<double(double)> f);
 
 template <typename T = double, typename V = double>
 std::vector<V> map(std::function<V(T)> f, std::vector<T> x) {
@@ -64,7 +68,6 @@ double scalar_mult(point a, point b);
 double sproject(point a, point r);
 
 point normv(double a);
-;
 
 point normalize(point x);
 

@@ -22,12 +22,55 @@ agent.cols <- c(
     "training.rate.zero",
     "training.rate.successfull",
     "training.rate.accurate",
-    "training.rate.correct_sign",
+    "training.rate.correct.sign",
+    "training.rate.optim.failed",
 
     tree.evaluator.cols
 )
 
 pod.game.cols <- c("did.finish", "relative", "speed")
+
+## Pure train
+df.pt <- setNames(read.csv("pure_train.meta.csv", header=F, stringsAsFactors=F), c("epoch", agent.cols, pod.game.cols))
+
+top.pids <- (df.pt %>%
+    select(age, pid, relative, speed) %>%
+    filter(age > 130) %>%
+    group_by(pid) %>%
+    mutate(rs = weighted.mean(relative, age)) %>%
+    group_by %>%
+    arrange(-rs) %>%
+    filter(pid %in% head(unique(pid), 5)))$pid
+
+df.pt %>%
+    select(age, pid, starts_with("training.rate")) %>%
+    filter(pid %in% top.pids) %>%
+    pivot_longer(-c(age, pid)) %>%
+    ggplot(aes(x = age, y = value, group = interaction(name, pid), color = name)) +
+    geom_path() +
+    facet_grid(pid~name, scales="free")
+
+df.pt %>%
+    select(age, pid, starts_with("training.rel")) %>%
+    filter(pid %in% top.pids, age > 10) %>%
+    mutate(
+        training.rel.change.mean = 100 * training.rel.change.mean,
+        training.rel.change.max = 100 * training.rel.change.max
+    ) %>%
+    pivot_longer(-c(age, pid)) %>%
+    ggplot(aes(x = age, y = value, group = interaction(name, pid), color = name)) +
+    geom_path() +
+    facet_grid(pid~name, scales="free")
+
+df.pt %>%
+    select(age, pid, relative, speed) %>%
+    filter(pid %in% top.pids) %>%
+    mutate(speed = speed / 250) %>%
+    pivot_longer(-c(age, pid)) %>%
+    ggplot(aes(x = age, y = value, group = interaction(name, pid), color = interaction(name, pid))) +
+    geom_smooth() +
+    facet_grid(pid~name, scales="free")
+    
 
 ## ****************************************
 ## POPULATION ANALYSIS

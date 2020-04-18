@@ -2,6 +2,7 @@
 
 #include <omp.h>
 
+#include <cassert>
 #include <iostream>
 #include <memory>
 #include <sstream>
@@ -21,10 +22,11 @@ training_stats::training_stats() {
   rel_change_mean = 0;
   rel_change_max = 0;
   rate_zero = 0;
-  rate_accurate = 0;
-  rate_correct_sign = 0;
-  rate_successfull = 0;
+  rate_accurate = 1;
+  rate_correct_sign = 1;
+  rate_successfull = 1;
   output_change = 0;
+  rate_optim_failed = 0;
 }
 
 void auto_update(double &x, double t, double r) {
@@ -88,26 +90,30 @@ void agent::train(vector<record> results, input_sampler isam) {
     results[i].sum_future_rewards = r + gamma * results[i + 1].sum_future_rewards;
   }
 
-  double num_correct = 0, num_zero = 0, num_bad = 0, num_success = 0, num_accurate = 0;
+  double num_correct = 0, num_zero = 0, num_bad = 0, num_success = 0, num_accurate = 0, num_optim_failed = 0;
   double rel_change_max = 0, rel_change_sum = 0;
   for (auto y : results) {
     double target = y.sum_future_rewards;
     double old_output = eval->evaluate(y.input);
     double rel_change;
+    bool success = eval->update(y.input, target, age, rel_change);
 
-    num_success += eval->update(y.input, target, age, rel_change);
+    if (success) {
+      num_success++;
+      rel_change_max = max(rel_change, rel_change_max);
+      rel_change_sum += rel_change;
 
-    rel_change_max = max(rel_change, rel_change_max);
-    rel_change_sum += rel_change;
+      double new_output = eval->evaluate(y.input);
+      double change = new_output - old_output;
+      double desired_change = target - old_output;
 
-    double new_output = eval->evaluate(y.input);
-    double change = new_output - old_output;
-    double desired_change = target - old_output;
-
-    num_correct += signum(change) == signum(desired_change);
-    num_bad += signum(change) && signum(change) != signum(desired_change);
-    num_zero += signum(change) == 0;
-    num_accurate += abs(new_output - target) < abs(old_output - target);
+      num_correct += signum(change) == signum(desired_change);
+      num_bad += signum(change) && signum(change) != signum(desired_change);
+      num_zero += signum(change) == 0;
+      num_accurate += abs(new_output - target) < abs(old_output - target);
+    } else {
+      num_optim_failed += !isfinite(rel_change);
+    }
   }
 
   if (num_success == 0) eval->stable = false;  // evaluator can no longer update
@@ -120,17 +126,29 @@ void agent::train(vector<record> results, input_sampler isam) {
   double output_change = l2norm(diffs) / l2norm(test_outputs);
 
   // update training stats
-  double tsrate = 0.005;
-  tstats.rel_change_max = max((1 - tsrate) * tstats.rel_change_max, rel_change_max);
-  auto_update(tstats.rel_change_mean, rel_change_sum / n, tsrate);
-  auto_update(tstats.rate_accurate, num_accurate / n, tsrate);
-  auto_update(tstats.rate_correct_sign, num_correct / n, tsrate);
+  double tsrate = 0.05;
+
+  if (num_success > 0) {
+    tstats.rel_change_max = max((1 - tsrate) * tstats.rel_change_max, rel_change_max);
+    auto_update(tstats.rel_change_mean, rel_change_sum / num_success, tsrate);
+    auto_update(tstats.output_change, output_change, tsrate);
+    auto_update(tstats.rate_accurate, num_accurate / num_success, tsrate);
+    auto_update(tstats.rate_correct_sign, num_correct / num_success, tsrate);
+    auto_update(tstats.rate_zero, num_zero / num_success, tsrate);
+  }
+
   auto_update(tstats.rate_successfull, num_success / n, tsrate);
-  auto_update(tstats.rate_zero, num_zero / n, tsrate);
-  auto_update(tstats.output_change, output_change, tsrate);
+  if (num_success < n) {
+    auto_update(tstats.rate_optim_failed, num_optim_failed / (n - num_success), tsrate);
+  }
 
   age++;
   mut_age++;
+
+  if (tstats.output_change > 1e-2 / age) {
+    tstats.output_change *= 0.5;
+    eval->learning_rate *= 0.5;
+  }
 }
 
 bool agent::evaluator_stability() const {
@@ -224,6 +242,7 @@ string agent::status_report() const {
      << score << comma << ancestors.size() << comma << parents.size() << comma
      << tstats.rel_change_mean << comma << tstats.rel_change_max << comma << tstats.output_change << comma
      << tstats.rate_zero << comma << tstats.rate_successfull << comma << tstats.rate_accurate << comma << tstats.rate_correct_sign << comma
+     << tstats.rate_optim_failed << comma
      << eval->status_report();
 
   return ss.str();

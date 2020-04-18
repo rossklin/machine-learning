@@ -36,7 +36,7 @@ void pure_train() {
   omp_set_num_threads(7);
 
   pod_game_generator ggen(2, 1, refbot_gen);
-  vector<agent_ptr> pop(100);
+  vector<agent_ptr> pop(1000);
   input_sampler isam = ggen.generate_input_sampler();
   int cdim = ggen.choice_dim();
 
@@ -62,15 +62,12 @@ void pure_train() {
       assert(g->players.size() == 2);
 
       auto res = g->play(epoch);
-
-      for (auto pid : g->team_clone_ids(a->team)) a->train(res.at(pid), isam);
-
-      a->age++;
+      for (auto x : res) a->train(x.second, isam);
 
       omp_set_lock(&writelock);
       ofstream fmeta("pure_train.meta.csv", ios::app);
-      string xmeta = g->end_stats();
-      fmeta << epoch << "," << a->id << "," << xmeta << endl;
+      string comma = ",";
+      fmeta << epoch << comma << a->status_report() << comma << g->end_stats() << endl;
       fmeta.close();
       omp_unset_lock(&writelock);
     }

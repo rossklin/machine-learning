@@ -1,3 +1,5 @@
+#include "utility.hpp"
+
 #include <cassert>
 #include <cfloat>
 #include <cmath>
@@ -5,7 +7,6 @@
 #include <sstream>
 
 #include "types.hpp"
-#include "utility.hpp"
 
 using namespace std;
 
@@ -16,6 +17,27 @@ void MutexType::Unlock() { omp_unset_lock(&lock); }
 
 MutexType::MutexType(const MutexType &) { omp_init_lock(&lock); }
 MutexType &MutexType::operator=(const MutexType &) { return *this; }
+
+double numgrad(double x, double h, function<double(double)> f) {
+  double a = f(x - h / 2);
+  double b = f(x + h / 2);
+  return (b - a) / h;
+}
+
+double foptim(double x, std::function<double(double)> f) {
+  double h = 1e-12;
+  double xlim = 0.0005 * abs(x);
+  double edge = 2 * abs(x);
+  double d = abs(x);
+  int max_its = 100;
+
+  for (int i = 0; i < max_its && abs(d) > xlim && x > 0 && x < edge; i++) {
+    d = numgrad(x, h, f);
+    x -= d;
+  }
+
+  return x;
+}
 
 point operator+(const point &a, const point &b) { return {a.x + b.x, a.y + b.y}; };
 point operator-(const point &a, const point &b) { return {a.x - b.x, a.y - b.y}; };

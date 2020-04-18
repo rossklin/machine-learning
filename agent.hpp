@@ -19,6 +19,7 @@ struct training_stats {
   double rate_accurate;
   double rate_zero;
   double rate_correct_sign;
+  double rate_optim_failed;
   double output_change;
 
   training_stats();

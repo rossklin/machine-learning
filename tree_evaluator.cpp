@@ -499,11 +499,31 @@ bool tree_evaluator::update(vec input, double output, int age, double &rel_chang
 
   double wlen = sqrt(root->ssw);
   double dwlen = sqrt(root->ssdw);
-  if (dwlen == 0) return false;
+  if (dwlen == 0) {
+    return false;
+  }
 
-  double time_scale = 1e-3 / sqrt(age + 1);
-  double step = learning_rate * time_scale;  // preferred step is size of gradient
-  double limit = 0.001 * time_scale;         // don't allow stepping more than .1% of weight vector length
+  // find minimum of discrepancy wrt step size
+  auto fopt = [this, input, output](double step) -> double {
+    tree::ptr root2 = root->clone();
+    root2->apply_dw(step);
+    double test = root2->evaluate(input);
+    return pow(test - output, 2);
+  };
+
+  double step = foptim(1, fopt);
+  double h = fopt(step);
+
+  // check if optimization succeeded
+  if (h >= pow(delta, 2) || step < 0) {
+    rel_change = INFINITY;
+    return false;
+  }
+
+  double time_scale = 1 / sqrt(age + 1);
+  double limit = 0.01 * time_scale;  // don't allow stepping more than .1% of weight vector length
+
+  step *= learning_rate * time_scale;
 
   if (step * dwlen > limit * wlen) {
     step = limit * wlen / dwlen;
@@ -519,7 +539,7 @@ bool tree_evaluator::update(vec input, double output, int age, double &rel_chang
   // scale down weights if too large
   wlen = sqrt(root->ssw);
   double new_output = evaluate(input);
-  stable = isfinite(new_output);
+  stable = isfinite(new_output) && isfinite(wlen);
 
 #if VERBOSE
   cout << "Update complete, output from " << current << " to " << new_output << " by " << (new_output - current) << ", target = " << output << endl;

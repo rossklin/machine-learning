@@ -109,14 +109,12 @@ agent_ptr game_generator::prepared_player(agent_f gen, float plim) const {
       const auto res = g->play(i + 1);
       for (auto x : res) a->train(x.second, isam);
 
-      if (a->eval->complexity_penalty() < 1e-5) {
-        // this agent has degenerated
-        a = gen();
-        eval = 0;
-        continue;
-      }
+      bool complex = a->eval->complexity_penalty() > 1e-5;
+      bool stable = !a->eval->stable;
+      bool trainable = a->tstats.rate_successfull > 0.01;
+      bool accurate = a->tstats.rate_accurate > 0.75;
 
-      if (!a->eval->stable) {
+      if (!(complex && stable && trainable && accurate)) {
         // this agent has degenerated
         a = gen();
         eval = 0;

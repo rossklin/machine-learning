@@ -137,8 +137,15 @@ void population_manager::evolve(game_generator_ptr gg) {
   int n_protprog = 0;
   int n_protchild = 0;
   int n_protmut = 0;
+  int n_drop = 0;
   for (int i = nkeep; i < pop.size(); i++) {
     agent_ptr a = pop[i];
+
+    // drop agent if it is no longer successfully updating
+    if (a->tstats.rate_successfull < 1e-3 || a->tstats.rate_accurate < 0.6) {
+      n_drop++;
+      continue;
+    }
 
     // update protection after adding agent so scores are calculated
     // before the agent is evaluated
@@ -160,7 +167,7 @@ void population_manager::evolve(game_generator_ptr gg) {
 
   int free_spots = popsize - player_buf.size();
 
-  cout << "PM: keeping " << nkeep << ", protected " << n_protprog << " progressors, " << n_protmut << " mutants and " << n_protchild << " children" << endl;
+  cout << "PM: keeping " << nkeep << ", dropping " << n_drop << " , protected " << n_protprog << " progressors, " << n_protmut << " mutants and " << n_protchild << " children" << endl;
 
   auto mate_generator = [this, nkeep]() -> agent_ptr {
     int idx1 = rand_int(0, nkeep - 1);
@@ -202,7 +209,7 @@ void population_manager::evolve(game_generator_ptr gg) {
   player_buf.insert(player_buf.end(), buf.begin(), buf.end());
   pop = player_buf;
 
-  // age players
+  // post processing
   for (auto x : pop) {
     x->score *= (1 - score_update_rate);
     x->eval->prune();

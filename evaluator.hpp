@@ -13,6 +13,7 @@ class evaluator {
 
  public:
   std::string tag;
+  double learning_rate;
   bool stable;
 
   virtual double evaluate(vec x) = 0;

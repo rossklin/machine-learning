@@ -50,7 +50,6 @@ class tree_evaluator : public evaluator {
  public:
   tree::ptr root;
   double gamma;  // regularization rate
-  double learning_rate;
   double weight_limit;
   int depth;
 
