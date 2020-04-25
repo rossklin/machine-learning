@@ -14,7 +14,7 @@ double simple_pod_evaluator::evaluate(vec x) {
   double dist = x[9];
   bool boost = x[2] > 0;
 
-  double target_angle = signum(a_ncp) * fmin(abs(a_ncp), angular_speed);
+  double target_angle = signum(a_ncp) * fmin(fabs(a_ncp), angular_speed);
   double angle_match = kernel(angle_difference(c_angle, target_angle), angular_speed / 3);
 
   double target_thrust = 100 * angle_match;
@@ -26,7 +26,7 @@ double simple_pod_evaluator::evaluate(vec x) {
   return angle_match * thrust_match + boost_match;
 }
 
-bool simple_pod_evaluator::update(vec input, double output, int age, double &rel_change) {
+bool simple_pod_evaluator::update(vector<record> results, int age, double &rel_change) {
   rel_change = 0;
   return true;
 }

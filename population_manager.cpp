@@ -18,20 +18,38 @@ population_manager::population_manager(int popsize, agent_f gen, float plim) : p
   assert(popsize >= 8);
 }
 
-// todo: wrote pop.size() = 32 but there were only 31 agents
+vector<agent_ptr> load_pop(stringstream &ss) {
+  int n;
+  vector<agent_ptr> pop;
+
+  ss >> n;
+  assert(n >= 0 && n < 1e4);
+  pop.resize(n);
+  for (auto &a : pop) a = deserialize_agent(ss);
+
+  return pop;
+}
+
+void save_pop(stringstream &ss, vector<agent_ptr> pop) {
+  ss << pop.size() << sep;
+  for (auto a : pop) ss << serialize_agent(a) << sep;
+}
+
 string population_manager::serialize() const {
   stringstream ss;
-  ss << pop.size() << sep << preplim << sep << simple_score_limit << sep;
-  for (auto a : pop) ss << serialize_agent(a) << sep;
+
+  ss << preplim << sep << simple_score_limit << sep;
+
+  save_pop(ss, pop);
+  save_pop(ss, retirement);
+
   return ss.str();
 }
 
 void population_manager::deserialize(stringstream &ss) {
-  int n;
-  ss >> n >> preplim >> simple_score_limit;
-  assert(n > 0 && n < 1e4);
-  pop.resize(n);
-  for (auto &a : pop) a = deserialize_agent(ss);
+  ss >> preplim >> simple_score_limit;
+  pop = load_pop(ss);
+  retirement = load_pop(ss);
 }
 
 string population_manager::pop_stats(string row_prefix) const {
@@ -127,22 +145,34 @@ void population_manager::evolve(game_generator_ptr gg) {
   sortpop();
 
   // update simple score limit
-  int lim_idx = 0.67 * pop.size();
+  int lim_idx = 0.8 * pop.size();
   simple_score_limit = 0.1 * pop[lim_idx]->simple_score + 0.9 * simple_score_limit;
 
-  auto player_buf = pop;
-  player_buf.resize(nkeep);
+  auto cond_drop = [](agent_ptr a) {
+    return !(a->tstats.rate_successfull > 0.5);
+  };
+
+  vector<agent_ptr> player_buf;
+  for (int i = 0; i < nkeep; i++) {
+    agent_ptr a = pop[i];
+    if (cond_drop(a)) {
+      player_buf.push_back(a);
+    } else if (i < 3) {
+      retirement.insert(retirement.begin(), a);
+    }
+  }
+  while (retirement.size() > 100) retirement.pop_back();
+  int n_drop = nkeep - player_buf.size();
 
   // protect children and players who's scores are still increasing
   int n_protprog = 0;
   int n_protchild = 0;
   int n_protmut = 0;
-  int n_drop = 0;
   for (int i = nkeep; i < pop.size(); i++) {
     agent_ptr a = pop[i];
 
     // drop agent if it is no longer successfully updating
-    if (a->tstats.rate_successfull < 1e-3 || a->tstats.rate_accurate < 0.6) {
+    if (cond_drop(a)) {
       n_drop++;
       continue;
     }
@@ -184,6 +214,7 @@ void population_manager::evolve(game_generator_ptr gg) {
     agent_ptr child = parent1->mate(parent2);
 
     child->parent_buf = {parent1, parent2};
+    if (retirement.size() > 0) child->parent_buf.push_back(sample_one(retirement));
     return child;
   };
 
@@ -191,6 +222,7 @@ void population_manager::evolve(game_generator_ptr gg) {
     int idx1 = rand_int(0, nkeep - 1);
     agent_ptr child = pop[idx1]->mutate();
     child->parent_buf = {pop[idx1]};
+    if (retirement.size() > 0) child->parent_buf.push_back(sample_one(retirement));
     return child;
   };
 

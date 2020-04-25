@@ -12,8 +12,8 @@
 using namespace std;
 
 void random_tournament::run(population_manager_ptr pm, game_generator_ptr gg, int epoch) {
-  int game_rounds = 50;
-  int practice_rounds = 20;
+  int game_rounds = 100;
+  int practice_rounds = 30;
   float score_update_rate = 0.1;
   int ppt = gg->ppt;
   int tpg = gg->nr_of_teams;
@@ -27,7 +27,7 @@ void random_tournament::run(population_manager_ptr pm, game_generator_ptr gg, in
     cout << "Arena: epoch " << epoch << " round " << round << ": select players" << endl;
 
     bool practice = round < practice_rounds;
-    float use_exrate = practice ? 0.4 : 0.05;
+    float use_exrate = practice ? 0.5 : 0.05;
 
     // match players in games
     auto player_buf = pm->pop;

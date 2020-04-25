@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cfloat>
 #include <cmath>
+#include <iterator>
 #include <random>
 #include <sstream>
 
@@ -24,17 +25,116 @@ double numgrad(double x, double h, function<double(double)> f) {
   return (b - a) / h;
 }
 
-double foptim(double x, std::function<double(double)> f) {
-  double h = 1e-12;
-  double xlim = 0.0005 * abs(x);
-  double edge = 2 * abs(x);
-  double d = abs(x);
-  int max_its = 100;
+string join_string(const vector<string> vec, string delim) {
+  if (vec.empty()) return "";
 
-  for (int i = 0; i < max_its && abs(d) > xlim && x > 0 && x < edge; i++) {
-    d = numgrad(x, h, f);
-    x -= d;
+  stringstream ss;
+  for (int i = 0; i < vec.size() - 1; i++) ss << vec[i] << delim;
+  ss << vec.back();
+
+  return ss.str();
+}
+
+vec voptim(vec x, std::function<double(vec)> fopt, std::function<vec(vec)> fgrad) {
+  double xlim = 2e-2 * l2norm(x);
+  double border = 1e3 * l2norm(x);
+  vec d = fgrad(x);
+  int max_its = 40;
+  double y = fopt(x);
+  double y_last = 2 * y;
+  double rel_lim = 1e-2;
+  int i;
+  double step_lim = 0.1;
+  int n = x.size();
+  // double h = 1e-6 * l2norm(x);
+  vec x_last = x;
+
+  vec ys = {y};
+  for (i = 0; i < max_its && l2norm(d) > xlim && l2norm(x) < border && (y_last - y) / y > rel_lim; i++) {
+    d = fgrad(x);
+
+    if (l2norm(d) == 0 || y == 0) break;
+
+    // for (int j = 0; j < n; j++) {
+    //   vec x2 = x, x1 = x;
+    //   x2[j] += h / 2;
+    //   x1[j] -= h / 2;
+    //   double d2j = (fgrad(x2)[j] - fgrad(x1)[j]) / h;
+    // }
+
+    // break at zero criteria (lesser of gradient descent and newton's root solver)
+    auto f0c = [y](double d) -> double {
+      if (d > 0) {
+        d = min(d, y / d);
+      } else {
+        d = max(d, y / d);
+      }
+      return d;
+    };
+
+    d = map<double, double>(f0c, d);
+
+    // ds.push_back(d);
+
+    // do not allow stepping more than X part of state
+    if (l2norm(d) > step_lim * l2norm(x)) d = step_lim * l2norm(x) / l2norm(d) * d;
+
+    // // do not allow stepping so that gradient will change by more than X part
+    // if (l2norm(d2) > 0 && l2norm(d) > step_lim * l2norm(d2)) d = step_lim * l2norm(x) / l2norm(d2) * d;
+
+    x_last = x;
+    x = x - d;
+
+    y_last = y;
+    y = fopt(x);
+    ys.push_back(y);
   }
+
+  // cout << ys << endl;
+
+  return y < y_last ? x : x_last;
+}
+
+// minimize f > 0
+double foptim(double x, std::function<double(double)> f) {
+  double xlim = 2e-2 * fabs(x);
+  double h = 1e-2 * xlim;
+  double edge = 1e3 * fabs(x);
+  double d = 2 * xlim;
+  int max_its = 40;
+  double y_last = 0;
+  double y = f(x);
+  double rel_lim = 1e-2;
+  int i;
+
+  // vector<double> xs, ys, ds;
+  for (i = 0; i < max_its && fabs(d) > xlim && x > 0 && x < edge && fabs(y - y_last) / y > rel_lim; i++) {
+    d = numgrad(x, h, f);
+    // xs.push_back(x);
+    // ys.push_back(y);
+
+    if (d == 0 || y == 0) break;
+
+    if (d > 0) {
+      d = min(d, y / d);
+    } else {
+      d = max(d, y / d);
+    }
+
+    // ds.push_back(d);
+
+    x -= d;
+
+    // don't step further than to zero - we have extreme gradients but assume f > 0
+    y_last = y;
+    y = f(x);
+  }
+
+  // string sxs = join_string(map<double, string>([](double x) -> string { return to_string(x); }, xs), ",");
+  // string sys = join_string(map<double, string>([](double x) -> string { return to_string(x); }, ys), ",");
+  // string sds = join_string(map<double, string>([](double x) -> string { return to_string(x); }, ds), ",");
+
+  // cout << "optpath <- list( xs = c(" << sxs << "), ys = c(" << sys << "), ds = c(" << sds << "))" << endl;
 
   return x;
 }

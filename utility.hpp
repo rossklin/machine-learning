@@ -28,7 +28,10 @@ struct MutexType {
   omp_lock_t lock;
 };
 
+std::string join_string(const std::vector<std::string> vec, std::string delim);
+
 double foptim(double x0, std::function<double(double)> f);
+vec voptim(vec x0, std::function<double(vec)> fopt, std::function<vec(vec)> fgrad);
 
 template <typename T = double, typename V = double>
 std::vector<V> map(std::function<V(T)> f, std::vector<T> x) {
@@ -97,6 +100,12 @@ vec operator+(vec a, const vec &b);
 vec operator-(vec a, const vec &b);
 
 vec operator*(const double &s, vec a);
+
+template <typename T>
+std::vector<T> vec_append(std::vector<T> a, std::vector<T> b) {
+  a.insert(a.end(), b.begin(), b.end());
+  return a;
+}
 
 template <typename T>
 std::ostream &operator<<(std::ostream &os, const std::vector<T> &x) {

@@ -13,6 +13,7 @@ class population_manager {
   float simple_score_limit;
   agent_f gen;
   std::vector<agent_ptr> pop;
+  std::vector<agent_ptr> retirement;
 
   population_manager(int popsize, agent_f gen, float plim);
   std::string pop_stats(std::string row_prefix) const;

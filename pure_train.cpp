@@ -33,17 +33,24 @@ agent_ptr refbot_gen() {
 
 void pure_train() {
   cout << "Pure train: start" << endl;
-  omp_set_num_threads(7);
+  omp_set_num_threads(6);
 
   pod_game_generator ggen(2, 1, refbot_gen);
   vector<agent_ptr> pop(1000);
   input_sampler isam = ggen.generate_input_sampler();
   int cdim = ggen.choice_dim();
 
-  for (auto &a : pop) {
-    a = agent_gen(cdim);
+  auto vgen = [ggen, cdim, isam]() -> agent_ptr {
+    agent_ptr a = agent_gen(cdim);
     a->initialize_from_input(isam, cdim);
-  }
+    while (set_difference(ggen.required_inputs(), a->eval->list_inputs()).size() > 0) {
+      a = agent_gen(cdim);
+      a->initialize_from_input(isam, cdim);
+    }
+    return a;
+  };
+
+  for (auto &a : pop) a = vgen();
 
   omp_lock_t writelock;
   omp_init_lock(&writelock);
@@ -54,6 +61,7 @@ void pure_train() {
 #pragma omp parallel for
     for (int i = 0; i < pop.size(); i++) {
       agent_ptr a = pop[i];
+      if ((set_difference(ggen.required_inputs(), a->eval->list_inputs()).size() > 0)) continue;
       if (!a->eval->stable) continue;
 
       a->set_exploration_rate(0.7 - 0.6 * atan(epoch / (float)40) / (M_PI / 2));

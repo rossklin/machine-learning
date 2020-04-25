@@ -1,7 +1,12 @@
 * todo
-** Use agent stats to filter agents in prepared_player and in epoch post processing
+** Analyze optim
+** All agents are droppen under condition: success > 0.5, accurate > 0.75
+** [done] Use analyitcal derivative in optimization
 ** Fine tune inner optimization parameters
-** Add a retirement home
+** Try simulated annealing 
+** [done] Add deserialization of retirement home
+** [done] Use agent stats to filter agents in prepared_player and in epoch post processing
+** [done] Add a retirement home
 ** [done] Define required inputs so agent generator can avoid testing obvious failures
 ** [done] refbot must be analyzed and fixed
 ** [done] supervision must be based on games between teachers, not teacher vs candidate

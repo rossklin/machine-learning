@@ -90,33 +90,8 @@ void agent::train(vector<record> results, input_sampler isam) {
     results[i].sum_future_rewards = r + gamma * results[i + 1].sum_future_rewards;
   }
 
-  double num_correct = 0, num_zero = 0, num_bad = 0, num_success = 0, num_accurate = 0, num_optim_failed = 0;
-  double rel_change_max = 0, rel_change_sum = 0;
-  for (auto y : results) {
-    double target = y.sum_future_rewards;
-    double old_output = eval->evaluate(y.input);
-    double rel_change;
-    bool success = eval->update(y.input, target, age, rel_change);
-
-    if (success) {
-      num_success++;
-      rel_change_max = max(rel_change, rel_change_max);
-      rel_change_sum += rel_change;
-
-      double new_output = eval->evaluate(y.input);
-      double change = new_output - old_output;
-      double desired_change = target - old_output;
-
-      num_correct += signum(change) == signum(desired_change);
-      num_bad += signum(change) && signum(change) != signum(desired_change);
-      num_zero += signum(change) == 0;
-      num_accurate += abs(new_output - target) < abs(old_output - target);
-    } else {
-      num_optim_failed += !isfinite(rel_change);
-    }
-  }
-
-  if (num_success == 0) eval->stable = false;  // evaluator can no longer update
+  double rel_change;
+  bool success = eval->update(results, age, rel_change);
 
   vector<double> test_outputs2(ntest), diffs(ntest);
   for (int i = 0; i < ntest; i++) {
@@ -125,29 +100,28 @@ void agent::train(vector<record> results, input_sampler isam) {
   }
   double output_change = l2norm(diffs) / l2norm(test_outputs);
 
+  if (!isfinite(output_change)) {
+    eval->stable = false;
+  }
+
   // update training stats
   double tsrate = 0.05;
 
-  if (num_success > 0) {
-    tstats.rel_change_max = max((1 - tsrate) * tstats.rel_change_max, rel_change_max);
-    auto_update(tstats.rel_change_mean, rel_change_sum / num_success, tsrate);
-    auto_update(tstats.output_change, output_change, tsrate);
-    auto_update(tstats.rate_accurate, num_accurate / num_success, tsrate);
-    auto_update(tstats.rate_correct_sign, num_correct / num_success, tsrate);
-    auto_update(tstats.rate_zero, num_zero / num_success, tsrate);
-  }
+  auto_update(tstats.rate_successfull, success, tsrate);
 
-  auto_update(tstats.rate_successfull, num_success / n, tsrate);
-  if (num_success < n) {
-    auto_update(tstats.rate_optim_failed, num_optim_failed / (n - num_success), tsrate);
+  if (success) {
+    auto_update(tstats.rel_change_mean, rel_change, tsrate);
+    auto_update(tstats.output_change, output_change, tsrate);
+  } else {
+    auto_update(tstats.rate_optim_failed, !isfinite(rel_change), tsrate);
   }
 
   age++;
   mut_age++;
 
-  if (tstats.output_change > 1e-2 / age) {
-    tstats.output_change *= 0.5;
-    eval->learning_rate *= 0.5;
+  if (tstats.output_change > 1e-2 / sqrt(age)) {
+    tstats.output_change *= 0.75;
+    eval->learning_rate *= 0.75;
   }
 }
 
@@ -240,8 +214,9 @@ string agent::status_report() const {
 
   ss << id << comma << label << comma << age << comma
      << score << comma << ancestors.size() << comma << parents.size() << comma
-     << tstats.rel_change_mean << comma << tstats.rel_change_max << comma << tstats.output_change << comma
-     << tstats.rate_zero << comma << tstats.rate_successfull << comma << tstats.rate_accurate << comma << tstats.rate_correct_sign << comma
+     << tstats.rel_change_mean << comma
+     << tstats.output_change << comma
+     << tstats.rate_successfull << comma
      << tstats.rate_optim_failed << comma
      << eval->status_report();
 

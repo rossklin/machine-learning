@@ -22,18 +22,15 @@ class tree_evaluator : public evaluator {
     std::string fname;
     std::vector<ptr> subtree;
     double resbuf;
-    double dwbuf;
-    double ssw;
-    double ssdw;
 
     double evaluate(const vec &x);
     void initialize(int dim, int depth);
     ptr get_subtree(double p_cut);
     void emplace_subtree(ptr, double p_put);
     ptr clone();
-    void calculate_dw(double delta, double alpha, double gamma, bool &stable);  // return SS of dw
-    void apply_dw(double scale);                                                // return SS of w
-    void scale_weights(double scale);                                           // return SS of w
+    int calculate_dw(vec &dgdw, int offset, double delta, double alpha, double gamma);
+    int set_weights(const vec &x, int offset = 0);
+    vec get_weights() const;
     int count_trees();
     bool descendant_exists(tree *p, int lev = 0);
     bool loop_free(int lev = 0);
@@ -55,18 +52,19 @@ class tree_evaluator : public evaluator {
 
   tree_evaluator();
   tree_evaluator(int depth);
-  double evaluate(vec x);  // modifies resbuf
-  bool update(vec input, double output, int age, double &rel_change);
-  void prune();
-  evaluator_ptr mate(evaluator_ptr partner) const;
-  evaluator_ptr mutate() const;
-  std::string serialize() const;
-  void deserialize(std::stringstream &ss);
-  void initialize(input_sampler sampler, int cdim);
+  double evaluate(vec x) override;  // modifies resbuf
+  bool update(std::vector<record> results, int age, double &rel_change) override;
+  void prune() override;
+  evaluator_ptr mate(evaluator_ptr partner) const override;
+  evaluator_ptr mutate() const override;
+  std::string serialize() const override;
+  void deserialize(std::stringstream &ss) override;
+  void initialize(input_sampler sampler, int cdim) override;
+  std::string status_report() const override;
+  evaluator_ptr clone() const override;
+  double complexity_penalty() const override;
+  double complexity() const override;
+  std::set<int> list_inputs() const override;
+
   void example_setup(int cdim);
-  std::string status_report() const;
-  evaluator_ptr clone() const;
-  double complexity_penalty() const;
-  double complexity() const;
-  std::set<int> list_inputs() const;
 };

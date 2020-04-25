@@ -6,6 +6,43 @@ library(plotly)
 library(gridExtra)
 library(tidyr)
 
+
+## sample 1, 2, 9:
+## step = 1e-9
+## gradient ?
+## num dy/dx -1e20
+## opt exits no iteration: d = 0
+## different outcoes
+
+## sample 3, 4, 8:
+## step 1e-8
+## gradient:       0         0      2796   3072469     35137 117547022
+## opt: overshoots local min at 7e-9, one step 1e-9 -> 1e-8, exits: d < 1e-8
+## different outcomes
+
+## sample 5, 6, 7
+## step: -1e-6 (negative)
+## gradient:       0         0     20284   1385766    100761 105622920
+## opt: steps backwards, worsens objective
+
+step * 100
+ggplot(data.frame(x = step * seq_along(landscape), y = landscape), aes(x = x, y = y)) + geom_path() + geom_vline(xintercept = 100 * step) + geom_vline(xintercept = 1e-9)
+
+ggplot(data.frame(x = step * (1:100), y = head(landscape, 100)), aes(x = x, y = y)) + geom_path()
+
+landscape[1]
+landscape[2]
+landscape[101]
+
+optpath
+ggplot(data.frame(x = seq_along(optpath$ys),  y = optpath$ys), aes(x = x, y = y)) + geom_path()
+
+ggplot(data.frame(x = gradient), aes(x = x)) + geom_density()
+summary(abs(gradient))
+
+
+## analysis
+
 tree.evaluator.cols <- c("treesize", "lrate")
 
 agent.cols <- c(
@@ -17,12 +54,12 @@ agent.cols <- c(
     "nparents",
 
     "training.rel.change.mean",
-    "training.rel.change.max",
+    ## "training.rel.change.max",
     "training.rel.change.output",
-    "training.rate.zero",
+    ## "training.rate.zero",
     "training.rate.successfull",
-    "training.rate.accurate",
-    "training.rate.correct.sign",
+    ## "training.rate.accurate",
+    ## "training.rate.correct.sign",
     "training.rate.optim.failed",
 
     tree.evaluator.cols
@@ -31,71 +68,119 @@ agent.cols <- c(
 pod.game.cols <- c("did.finish", "relative", "speed")
 
 ## Pure train
+
+## cases
+## extreme gradient: 1
+
 df.pt <- setNames(read.csv("pure_train.meta.csv", header=F, stringsAsFactors=F), c("epoch", agent.cols, pod.game.cols))
 
 top.pids <- (df.pt %>%
-    select(age, pid, relative, speed) %>%
-    filter(age > 130) %>%
+    select(epoch, pid, relative, speed) %>%
+    filter(epoch > 5) %>%
     group_by(pid) %>%
-    mutate(rs = weighted.mean(relative, age)) %>%
+    mutate(rs = weighted.mean(relative, epoch)) %>%
     group_by %>%
     arrange(-rs) %>%
-    filter(pid %in% head(unique(pid), 5)))$pid
+    filter(pid %in% head(unique(pid), 5)))$pid %>% unique
 
 df.pt %>%
-    select(age, pid, starts_with("training.rate")) %>%
+    filter(did.finish > 0) %>%
+    select(epoch, pid, relative, speed) %>%
     filter(pid %in% top.pids) %>%
-    pivot_longer(-c(age, pid)) %>%
-    ggplot(aes(x = age, y = value, group = interaction(name, pid), color = name)) +
-    geom_path() +
-    facet_grid(pid~name, scales="free")
-
-df.pt %>%
-    select(age, pid, starts_with("training.rel")) %>%
-    filter(pid %in% top.pids, age > 10) %>%
-    mutate(
-        training.rel.change.mean = 100 * training.rel.change.mean,
-        training.rel.change.max = 100 * training.rel.change.max
-    ) %>%
-    pivot_longer(-c(age, pid)) %>%
-    ggplot(aes(x = age, y = value, group = interaction(name, pid), color = name)) +
-    geom_path() +
-    facet_grid(pid~name, scales="free")
-
-df.pt %>%
-    select(age, pid, relative, speed) %>%
-    filter(pid %in% top.pids) %>%
-    mutate(speed = speed / 250) %>%
-    pivot_longer(-c(age, pid)) %>%
-    ggplot(aes(x = age, y = value, group = interaction(name, pid), color = interaction(name, pid))) +
+    mutate(speed = speed / 250, win = relative > 1) %>%
+    pivot_longer(-c(epoch, pid)) %>%
+    ggplot(aes(x = epoch, y = value)) +
+    geom_point() + 
     geom_smooth() +
+    geom_hline(yintercept = 0:1) +
+    coord_cartesian(ylim = c(-0.5, 1.5)) +
+    facet_grid(pid~name)
+
+df.pt %>%
+    select(epoch, pid, starts_with("training.rate")) %>%
+    filter(pid %in% top.pids) %>%
+    pivot_longer(-c(epoch, pid)) %>%
+    ggplot(aes(x = epoch, y = value, group = interaction(name, pid), color = name)) +
+    geom_path(size=2, alpha=0.3) +
+    facet_grid(.~name, scales="free")
+
+df.pt %>%
+    select(epoch, pid, starts_with("training.rel")) %>%
+    filter(pid %in% top.pids) %>%
+    pivot_longer(-c(epoch, pid)) %>%
+    ggplot(aes(x = epoch, y = value, group = interaction(name, pid), color = name)) +
+    geom_path() +
     facet_grid(pid~name, scales="free")
+
+df.pt %>%
+    filter(pid %in% top.pids) %>%
+    mutate(cent = ceiling(epoch / 100)) %>%
+    group_by(cent, pid) %>%
+    summarize(r = mean(speed)) %>%
+    group_by(cent) %>%
+    filter(r == max(r)) %>%
+    arrange(cent) %>%
+    data.frame
     
 
 ## ****************************************
 ## POPULATION ANALYSIS
 ## ****************************************
 
-df.population <- setNames(read.csv("data/population.csv", header=F), c("epoch", "rank", agent.cols))
+df.pt <- setNames(read.csv("data/population.csv", header=F, stringsAsFactors=F), c("epoch", "rank", agent.cols))
 
-df.population %>%
-    select(age, starts_with("training.rel.change")) %>%
+df.pt %>%
+    select(epoch, pid, starts_with("training.rate")) %>%
+    ## filter(pid %in% top.pids) %>%
+    pivot_longer(-c(epoch, pid)) %>%
+    ggplot(aes(x = epoch, y = value, group = interaction(name, pid), color = name)) +
+    geom_path(size=2, alpha=0.3) +
+    facet_grid(.~name, scales="free")
+
+df.pt %>%
+    select(epoch, pid, starts_with("training.rel")) %>%
+    ## filter(pid %in% top.pids) %>%
     mutate(
-        training.rel.change.mean = training.rel.change.mean * 1000,
-        training.rel.change.max = training.rel.change.max * 1000
+        training.rel.change.mean = 100 * training.rel.change.mean,
+        training.rel.change.max = 100 * training.rel.change.max
     ) %>%
-    pivot_longer(-age) %>%
-    ggplot(aes(x = age, y = value, group = name, color = name)) +
-    geom_point() +
-    geom_path()
-
-df.population %>%
-    select(age, starts_with("training.rate")) %>%
-    pivot_longer(-age) %>%
-    ggplot(aes(x = age, y = value, group = name, color = name)) +
-    geom_point() +
+    pivot_longer(-c(epoch, pid)) %>%
+    ggplot(aes(x = epoch, y = value, color = name)) +
     geom_smooth() +
-    ylim(c(-0.1,1.1))
+    facet_grid(.~name)
+
+## df.pt %>%
+##     ## filter(pid %in% top.pids) %>%
+##     mutate(cent = ceiling(epoch / 100)) %>%
+##     group_by(cent, pid) %>%
+##     summarize(r = mean(speed)) %>%
+##     group_by(cent) %>%
+##     filter(r == max(r)) %>%
+##     arrange(cent) %>%
+##     data.frame
+
+## df.pt %>%
+##     select(epoch, pid, relative, speed) %>%
+##     ## filter(pid %in% top.pids) %>%
+##     mutate(speed = speed / 250) %>%
+##     pivot_longer(-c(epoch, pid)) %>%
+##     ggplot(aes(x = epoch, y = value)) +
+##     geom_smooth() +
+##     facet_grid(pid~name)
+
+## df.population %>%
+##     select(age, starts_with("training.rel.change")) %>%
+##     pivot_longer(-age) %>%
+##     ggplot(aes(x = age, y = value, group = name, color = name)) +
+##     geom_point() +
+##     facet_grid(name~., scales="free")
+
+## df.population %>%
+##     select(age, starts_with("training.rate")) %>%
+##     pivot_longer(-age) %>%
+##     ggplot(aes(x = age, y = value, group = name, color = name)) +
+##     geom_point() +
+##     facet_grid(name~., scales="free")
 
 rank.limit <- 8
 pop.plot <- df.population %>%
@@ -125,18 +210,18 @@ df.meta <- setNames(
     read.csv("data/game.meta.csv", header=F),
     c("epoch", "rank", agent.cols, pod.game.cols)
 ) %>%
-    mutate(win = as.numeric(relative >= 1)) %>%
-    filter(epoch >= 27)
+    mutate(win = as.numeric(relative >= 1))
 
 ## df.meta %>% filter(epoch == max(epoch))
 
 span <- 1
 ref.plot <- ggplot(
     df.meta,
-    aes(x = epoch, y = relative, shape = as.factor(did.finish), color = as.factor(rank), group = as.factor(rank))
+    aes(x = epoch, y = relative, shape = as.factor(did.finish)## , color = as.factor(rank), group = as.factor(rank)
+        )
 ) +
     geom_point(aes(size=age), alpha=0.25) +
-    geom_smooth(se=F, span=span) + ## relative speed
+    geom_smooth(se=F, span=span, aes(shape = NULL)) + ## relative speed
     geom_smooth(se=F, span=span, linetype="dashed", aes(y = 2 * win, shape=NULL)) + ## winrate
     geom_hline(yintercept = 0) +
     geom_hline(yintercept = 1) +
@@ -145,7 +230,7 @@ ref.plot <- ggplot(
 ## COMBINE PLOTS
 grid.arrange(pop.plot, ref.plot, ncol=2)
 
-summary(lm(win~epoch, data = df.meta %>% filter(rank == 0, epoch > 35)))
+summary(lm(win~epoch, data = df.meta %>% filter(rank == 0)))
 
 df.meta %>%
     mutate(decade = ceiling(epoch / 10)) %>%

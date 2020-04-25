@@ -15,12 +15,12 @@ using namespace std;
 const int max_weighted_subtrees = 10;
 
 tree_evaluator::tree_evaluator(int d) : depth(d), evaluator() {
-  gamma = abs(rnorm(0.001, 0.0005));
+  gamma = fabs(rnorm(0.001, 0.0005));
   tag = "tree";
 }
 
 tree_evaluator::tree_evaluator() : evaluator() {
-  gamma = abs(rnorm(0.001, 0.0005));
+  gamma = fabs(rnorm(0.001, 0.0005));
   tag = "tree";
 }
 
@@ -38,7 +38,7 @@ const hm<string, t_unary> &tree_evaluator::unary_ops() {
     unary_op["atan"].fprime = [](double x) { return 1 / (1 + pow(x, 2)); };
     unary_op["sigmoid"].f = [](double x) { return 1 / (1 + exp(-x)); };
     unary_op["sigmoid"].fprime = [](double x) -> double {
-      if (abs(x) > 20) {
+      if (fabs(x) > 20) {
         return 0;
       } else {
         return exp(-x) / pow(1 + exp(-x), 2);
@@ -87,40 +87,40 @@ const hm<string, t_binary> &tree_evaluator::binary_ops() {
     binary_op["product"].dfdx1 = [](double a, double b) { return b; };
     binary_op["product"].dfdx2 = [](double a, double b) { return a; };
 
-    binary_op["ratio"].f = [](double a, double b) {
-      if (fabs(b) > 0) {
-        double q = a / b;
-        return fmin(fabs(q), 1e12) * signum(q);
-      } else {
-        return 1e12 * signum(a);
-      }
-    };
+    // binary_op["ratio"].f = [](double a, double b) {
+    //   if (fabs(b) > 0) {
+    //     double q = a / b;
+    //     return fmin(fabs(q), 1e12) * signum(q);
+    //   } else {
+    //     return 1e12 * signum(a);
+    //   }
+    // };
 
-    binary_op["ratio"].dfdx1 = [](double a, double b) -> double {
-      if (fabs(b) > 0) {
-        double q = a / b;
-        if (fabs(q) < 1e12) {
-          return 1 / b;
-        } else {
-          return 0;
-        }
-      } else {
-        return 0;
-      }
-    };
+    // binary_op["ratio"].dfdx1 = [](double a, double b) -> double {
+    //   if (fabs(b) > 0) {
+    //     double q = a / b;
+    //     if (fabs(q) < 1e12) {
+    //       return 1 / b;
+    //     } else {
+    //       return 0;
+    //     }
+    //   } else {
+    //     return 0;
+    //   }
+    // };
 
-    binary_op["ratio"].dfdx2 = [](double a, double b) -> double {
-      if (fabs(b) > 0) {
-        double q = a / b;
-        if (fabs(q) < 1e12) {
-          return -a / pow(b, 2);
-        } else {
-          return 0;
-        }
-      } else {
-        return 0;
-      }
-    };
+    // binary_op["ratio"].dfdx2 = [](double a, double b) -> double {
+    //   if (fabs(b) > 0) {
+    //     double q = a / b;
+    //     if (fabs(q) < 1e12) {
+    //       return -a / pow(b, 2);
+    //     } else {
+    //       return 0;
+    //     }
+    //   } else {
+    //     return 0;
+    //   }
+    // };
   }
   m.Unlock();
 
@@ -331,10 +331,11 @@ void tree_evaluator::tree::initialize(int dim, int depth) {
   w = rnorm();
 
   if (depth > 0 && u01() < (1 - p_cut)) {
-    if (u01() < 0.4) {
+    if (u01() < 0.3) {
       // weight
       class_id = WEIGHT_TREE;
-      subtree.resize(rand_int(2, max_weighted_subtrees));
+      int size = ranked_sample(seq(2, max_weighted_subtrees), 0.5);
+      subtree.resize(size);
     } else if (u01() < 0.5) {
       // unary
       class_id = UNARY_TREE;
@@ -388,73 +389,66 @@ void tree_evaluator::tree::emplace_subtree(tree::ptr x, double p_put) {
   }
 }
 
-void tree_evaluator::tree::apply_dw(double scale) {
-#if VERBOSE
-  // debug
-  cout << "Node class " << class_id << ": apply dw: resbuf = " << resbuf << ", dwbuf = " << dwbuf << " :: w from " << w << " to " << (w - dwbuf * scale) << endl;
-#endif
+// void tree_evaluator::tree::apply_dw(double scale) {
+// #if VERBOSE
+//   // debug
+//   cout << "Node class " << class_id << ": apply dw: resbuf = " << resbuf << ", dwbuf = " << dwbuf << " :: w from " << w << " to " << (w - dwbuf * scale) << endl;
+// #endif
 
-  double delta = -dwbuf * scale;
+//   double delta = -dwbuf * scale;
 
-  if (abs(delta) >= abs(w) && signum(delta) != signum(w)) {
-    w = 0;  //w was reduced to 0, stop here!
-  } else {
-    w += delta;  // basic gradient descent
-  }
+//   if (fabs(delta) >= fabs(w) && signum(delta) != signum(w)) {
+//     w = 0;  //w was reduced to 0, stop here!
+//   } else {
+//     w += delta;  // basic gradient descent
+//   }
 
-  ssw = pow(w, 2);
-  for (auto t : subtree) {
-    t->apply_dw(scale);
-    ssw += t->ssw;
-  }
-}
+//   ssw = pow(w, 2);
+//   for (auto t : subtree) {
+//     t->apply_dw(scale);
+//     ssw += t->ssw;
+//   }
+// }
 
-void tree_evaluator::tree::scale_weights(double rescale) {
-  w *= rescale;
-  ssw = pow(w, 2);
-  assert(isfinite(w));
-  for (auto t : subtree) {
-    t->scale_weights(rescale);
-    ssw += t->ssw;
-  }
-}
+// void tree_evaluator::tree::scale_weights(double rescale) {
+//   w *= rescale;
+//   // ssw = pow(w, 2);
+//   assert(isfinite(w));
+//   for (auto t : subtree) {
+//     t->scale_weights(rescale);
+//     // ssw += t->ssw;
+//   }
+// }
 
-void tree_evaluator::tree::calculate_dw(double delta, double alpha, double gamma, bool &stable) {
-  ssw = 0;
-  ssdw = 0;
-
-  if (class_id == BINARY_TREE) {
-    double y1 = subtree[0]->resbuf;
-    double y2 = subtree[1]->resbuf;
-    double left_deriv = binary_ops().at(fname).dfdx1(y1, y2);
-    double right_deriv = binary_ops().at(fname).dfdx2(y1, y2);
-    subtree[0]->calculate_dw(delta, w * left_deriv * alpha, gamma, stable);
-    subtree[1]->calculate_dw(delta, w * right_deriv * alpha, gamma, stable);
-  } else if (class_id == UNARY_TREE) {
-    double y = subtree[0]->resbuf;
-    double deriv = unary_ops().at(fname).fprime(y);
-    subtree[0]->calculate_dw(delta, w * deriv * alpha, gamma, stable);
-  } else if (class_id == WEIGHT_TREE) {
-    for (auto a : subtree) {
-      a->calculate_dw(delta, w * alpha, gamma, stable);
-    }
-  }
-
+// must run evaluate first to set resbuf
+int tree_evaluator::tree::calculate_dw(vec &dgdw, int offset, double delta, double alpha, double gamma) {
   double dydw;
   if (w == 0) {
     dydw = 0;  // once a weight hits zero, leave it there for later pruning
   } else {
     dydw = alpha * resbuf / w;
   }
+  dgdw[offset] = -2 * delta * dydw - gamma * signum(w);
+  offset++;
 
-  for (auto t : subtree) {
-    ssw += t->ssw;
-    ssdw += t->ssdw;
+  if (class_id == BINARY_TREE) {
+    double y1 = subtree[0]->resbuf;
+    double y2 = subtree[1]->resbuf;
+    double left_deriv = binary_ops().at(fname).dfdx1(y1, y2);
+    double right_deriv = binary_ops().at(fname).dfdx2(y1, y2);
+    offset = subtree[0]->calculate_dw(dgdw, offset, delta, w * left_deriv * alpha, gamma);
+    offset = subtree[1]->calculate_dw(dgdw, offset, delta, w * left_deriv * alpha, gamma);
+  } else if (class_id == UNARY_TREE) {
+    double y = subtree[0]->resbuf;
+    double deriv = unary_ops().at(fname).fprime(y);
+    offset = subtree[0]->calculate_dw(dgdw, offset, delta, w * deriv * alpha, gamma);
+  } else if (class_id == WEIGHT_TREE) {
+    for (auto a : subtree) {
+      offset = a->calculate_dw(dgdw, offset, delta, w * alpha, gamma);
+    }
   }
 
-  dwbuf = -2 * delta * dydw - gamma * signum(w);  // dG/dw = -2 delta dy/dw, G = delta²
-  ssw += pow(w, 2);
-  ssdw += pow(dwbuf, 2);
+  return offset;
 }
 
 set<int> tree_evaluator::tree::list_inputs() const {
@@ -467,6 +461,23 @@ set<int> tree_evaluator::tree::list_inputs() const {
   } else {
     return {};
   }
+}
+
+int tree_evaluator::tree::set_weights(const vec &x, int offset) {
+  assert(offset < x.size());
+
+  w = x[offset];
+  offset++;
+
+  for (auto a : subtree) offset = a->set_weights(x, offset);
+
+  return offset;
+}
+
+vec tree_evaluator::tree::get_weights() const {
+  vec res = {w};
+  for (auto a : subtree) res = vec_append(res, a->get_weights());
+  return res;
 }
 
 evaluator_ptr tree_evaluator::clone() const {
@@ -483,7 +494,7 @@ void tree_evaluator::prune() {
   root->prune();
 }
 
-bool tree_evaluator::update(vec input, double output, int age, double &rel_change) {
+bool tree_evaluator::update(vector<record> results, int age, double &rel_change) {
 #if VERBOSE
   // debug
   vec printbuf(input.begin(), input.begin() + 5);
@@ -491,69 +502,112 @@ bool tree_evaluator::update(vec input, double output, int age, double &rel_chang
 #endif
 
   rel_change = 0;
-  double current = evaluate(input);
-  double delta = output - current;
+  // double current = evaluate(input);
+  // double delta = output - current;
 
-  // compute weight increments
-  root->calculate_dw(delta, 1, gamma, stable);
+  // // compute weight increments
+  // root->calculate_dw(delta, 1, gamma, stable);
 
-  double wlen = sqrt(root->ssw);
-  double dwlen = sqrt(root->ssdw);
-  if (dwlen == 0) {
-    return false;
-  }
+  // double wlen = sqrt(root->ssw);
+  // double dwlen = sqrt(root->ssdw);
+  // if (dwlen == 0) {
+  //   return false;
+  // }
+
+  // Single data point:
+  // G = d² = (T-Y)²
+  // dG/dwi = -2 d dy/dw
+
+  // Multiple data point:
+  // d[i] = T[i] - Y[i]
+  // G = ||d||² = Sum { (T[i] - Y[i])²}
+  // dG[i] / dw[j] = -2 d[i] dy[i]/dw[j]
+  // dG/dw[j] = Sum_i dG[i]/dw[j]
 
   // find minimum of discrepancy wrt step size
-  auto fopt = [this, input, output](double step) -> double {
-    tree::ptr root2 = root->clone();
-    root2->apply_dw(step);
-    double test = root2->evaluate(input);
-    return pow(test - output, 2);
+  auto fopt = [this, results](vec x) -> double {
+    double G = 0;
+    tree::ptr buf = root->clone();
+    buf->set_weights(x);
+    for (auto res : results) {
+      double test = buf->evaluate(res.input);
+      G += pow(test - res.sum_future_rewards, 2);
+    }
+    return G;
   };
 
-  double step = foptim(1, fopt);
-  double h = fopt(step);
+  // calculate dG/dw for whole batch
+  auto fgrad = [this, results](vec x) -> vec {
+    int n = x.size();
+    vec dgdw(n, 0);
+    tree::ptr buf = root->clone();
+    buf->set_weights(x);
 
-  // check if optimization succeeded
-  if (h >= pow(delta, 2) || step < 0) {
+    for (auto res : results) {
+      double output = buf->evaluate(res.input);
+      double delta = res.sum_future_rewards - output;
+      vec grad(x);
+      buf->calculate_dw(grad, 0, delta, 1, gamma);
+      dgdw = dgdw + grad;
+    }
+
+    return dgdw;
+  };
+
+  vec x0 = root->get_weights();
+  vec x = voptim(x0, fopt, fgrad);
+
+  if (fopt(x) >= fopt(x0)) {
     rel_change = INFINITY;
     return false;
   }
 
+  // double step = foptim(1e-4 * wlen / dwlen, fopt);
+  // double h = fopt(step);
+
+  // // debug: print opt landscape
+  // double ss = step / 100;
+  // dbgbuf.resize(300);
+  // for (int i = 0; i < 300; i++) dbgbuf[i] = to_string(fopt(i * ss));
+  // cout << "step <- " << ss << endl;
+  // cout << "landscape <- c(" << join_string(dbgbuf, ",\n") << ")" << endl;
+
+  // cout << "RESULT: " << h / pow(delta, 2) << endl;
+
+  // check if optimization succeeded
+  // if (h >= pow(delta, 2) || step < 0) {
+  //   rel_change = INFINITY;
+  //   return false;
+  // }
+
   double time_scale = 1 / sqrt(age + 1);
-  double limit = 0.01 * time_scale;  // don't allow stepping more than .1% of weight vector length
+  double limit = 0.1 * time_scale;  // don't allow stepping more than .1% of weight vector length
 
-  step *= learning_rate * time_scale;
+  vec step = learning_rate * time_scale * (x - x0);
 
-  if (step * dwlen > limit * wlen) {
-    step = limit * wlen / dwlen;
+  if (l2norm(step) > limit * l2norm(x0)) {
+    step = limit * l2norm(x0) / l2norm(x - x0) * (x - x0);
   }
 
-  rel_change = step * dwlen / wlen;
+  rel_change = l2norm(step) / l2norm(x0);
 
-  root->apply_dw(step);
+  root->set_weights(x0 + step);
+
+  // root->apply_dw(step);
 
   // remove subtrees where the weight was reduced to zero
   prune();
 
   // scale down weights if too large
-  wlen = sqrt(root->ssw);
-  double new_output = evaluate(input);
-  stable = isfinite(new_output) && isfinite(wlen);
-
-#if VERBOSE
-  cout << "Update complete, output from " << current << " to " << new_output << " by " << (new_output - current) << ", target = " << output << endl;
-#endif
+  x = root->get_weights();
+  double wlen = l2norm(x);
+  stable = isfinite(wlen);
 
   if (stable && wlen > weight_limit) {
-#if VERBOSE
-    cout << "Limiting weights" << endl;
-#endif
-
-    root->scale_weights(weight_limit / wlen);
+    root->set_weights(weight_limit / wlen * x);
     prune();
 
-    assert(sqrt(root->ssw) <= 1.1 * weight_limit);
+    assert(l2norm(root->get_weights()) <= 1.1 * weight_limit);
   }
 
   return stable;
@@ -695,7 +749,7 @@ void tree_evaluator::example_setup(int cdim) {
 void tree_evaluator::initialize(input_sampler sampler, int cdim) {
   stable = true;
   dim = cdim;
-  learning_rate = fabs(rnorm(0, 0.1));
+  learning_rate = fabs(rnorm(0, 0.5));
   weight_limit = u01(100, 10000);
 
   root = tree::ptr(new tree);

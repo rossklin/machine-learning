@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
   int tree_depth = 5;
   bool debug = false;
   int prep_npar = 32;
-  float preplim = 0.1;
+  float preplim = 0.5;
   int max_turns = 300;
   string loadfile;
 
@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
   // todo: validate ppt matches load file
 
   game_generator_ptr ggen(new pod_game_generator(tpg, ppt, refbot_gen));
-  ggen->prep_npar = threads;
+  ggen->prep_npar = prep_npar;
   ggen->max_turns = max_turns;
 
   input_sampler is = ggen->generate_input_sampler();

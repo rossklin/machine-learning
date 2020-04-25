@@ -75,7 +75,7 @@ record_table pod_game::increment() {
     res[pid].input = vectorize_input(c, pid);
     res[pid].output = p->evaluate_choice(res[x.first].input);
 
-    p->data.a += fmin(angular_speed, abs(c->angle)) * signum(c->angle);
+    p->data.a += fmin(angular_speed, fabs(c->angle)) * signum(c->angle);
 
     if (p->data.shield_active) {
       p->data.shield_active--;
@@ -164,10 +164,10 @@ record_table pod_game::increment() {
 
   for (auto x : players) {
     // change in greatest distance travelled in team
-    res[x.first].reward_simple = htab_after[x.first] - htab_before[x.first];
+    res[x.first].reward_simple = 1e-3 * (htab_after[x.first] - htab_before[x.first]);
 
     // change in difference in distance travelled between your team and best opponent team
-    res[x.first].reward = score(x.first, htab_after) - score(x.first, htab_before);
+    res[x.first].reward = 1e-3 * (score(x.first, htab_after) - score(x.first, htab_before));
 
     res[x.first].sum_future_rewards = 0;
   }
@@ -215,7 +215,7 @@ int pod_game::select_winner() {
 }
 
 double pod_game::winner_reward(int epoch) {
-  return 1000;
+  return 3;
 }
 
 // simple score should be somewhere around 1

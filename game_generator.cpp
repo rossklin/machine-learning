@@ -76,17 +76,25 @@ agent_ptr game_generator::prepared_player(agent_f gen, float plim) const {
   vector<agent_ptr> buf(prep_npar);
   input_sampler isam = generate_input_sampler();
 
-#pragma omp parallel for
-  for (int t = 0; t < prep_npar; t++) {
-    float eval = 0;
+  auto vgen = [this, gen]() -> agent_ptr {
     agent_ptr a = gen();
     while (set_difference(required_inputs(), a->eval->list_inputs()).size() > 0) {
       a = gen();
     }
+    return a;
+  };
 
-    for (int i = 0; i < 100; i++) {
-      bool supervizion = ((i * i) / 1000) % 2 == 0;
-      a->set_exploration_rate(0.5 - 0.2 * i / (float)100);
+#pragma omp parallel for
+  for (int t = 0; t < prep_npar; t++) {
+    float eval = 0;
+    agent_ptr a = vgen();
+    int restarts = 0;
+    int max_its = 30;
+    int ndata = 0;
+
+    for (int i = 0; i < max_its; i++) {
+      bool supervizion = ((i * i) / (10 * max_its)) % 2 == 0;
+      a->set_exploration_rate(0.8 - 0.6 * i / (float)max_its);
 
       // play and train
       vector<agent_ptr> pl;
@@ -109,21 +117,24 @@ agent_ptr game_generator::prepared_player(agent_f gen, float plim) const {
       const auto res = g->play(i + 1);
       for (auto x : res) a->train(x.second, isam);
 
-      bool complex = a->eval->complexity_penalty() > 1e-5;
-      bool stable = !a->eval->stable;
-      bool trainable = a->tstats.rate_successfull > 0.01;
-      bool accurate = a->tstats.rate_accurate > 0.75;
+      bool complex = a->eval->complexity() > 5;
+      bool stable = a->eval->stable;
+      bool trainable = a->tstats.rate_successfull > 0.5;
 
-      if (!(complex && stable && trainable && accurate)) {
+      if (!(complex && stable && trainable)) {
         // this agent has degenerated
-        a = gen();
+        i = 0;
+        a = vgen();
         eval = 0;
+        restarts++;
         continue;
       }
 
       if (!supervizion) {
         for (auto clone_pid : hm_keys(g->players)) {
-          eval = 0.1 * g->score_simple(clone_pid) + 0.9 * eval;
+          double res = g->score_simple(clone_pid);
+          ndata += i;
+          eval = (res * i + (ndata - i) * eval) / ndata;
         }
       }
     }
@@ -131,9 +142,9 @@ agent_ptr game_generator::prepared_player(agent_f gen, float plim) const {
     if (eval > plim) {
       a->score = eval;
       buf[t] = a;
-      cout << "prepared_player: ACCEPTING " << a->id << " with complexity " << a->eval->complexity() << " at eval = " << eval << endl;
+      cout << "prepared_player (" << restarts << " restarts): ACCEPTING " << a->id << " with complexity " << a->eval->complexity() << " at eval = " << eval << endl;
     } else {
-      cout << "prepared_player: rejecting " << a->id << " with complexity " << a->eval->complexity() << " at eval = " << eval << endl;
+      cout << "prepared_player (" << restarts << " restarts): rejecting " << a->id << " with complexity " << a->eval->complexity() << " at eval = " << eval << endl;
     }
   }
 

@@ -17,7 +17,7 @@ class evaluator {
   bool stable;
 
   virtual double evaluate(vec x) = 0;
-  virtual bool update(vec input, double output, int age, double &rel_change) = 0;
+  virtual bool update(std::vector<record> results, int age, double &rel_change) = 0;
   virtual void prune() = 0;
   virtual evaluator_ptr mate(evaluator_ptr partner) const = 0;
   virtual evaluator_ptr mutate() const = 0;
