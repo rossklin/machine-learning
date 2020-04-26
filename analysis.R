@@ -133,17 +133,13 @@ df.pt %>%
     select(epoch, pid, starts_with("training.rate")) %>%
     ## filter(pid %in% top.pids) %>%
     pivot_longer(-c(epoch, pid)) %>%
-    ggplot(aes(x = epoch, y = value, group = interaction(name, pid), color = name)) +
-    geom_path(size=2, alpha=0.3) +
+    ggplot(aes(x = epoch, y = value, group = name, color = name)) +
+    geom_smooth(size=2, alpha=0.3) +
     facet_grid(.~name, scales="free")
 
 df.pt %>%
     select(epoch, pid, starts_with("training.rel")) %>%
     ## filter(pid %in% top.pids) %>%
-    mutate(
-        training.rel.change.mean = 100 * training.rel.change.mean,
-        training.rel.change.max = 100 * training.rel.change.max
-    ) %>%
     pivot_longer(-c(epoch, pid)) %>%
     ggplot(aes(x = epoch, y = value, color = name)) +
     geom_smooth() +
@@ -183,13 +179,12 @@ df.pt %>%
 ##     facet_grid(name~., scales="free")
 
 rank.limit <- 8
-pop.plot <- df.population %>%
+pop.plot <- df.pt %>%
     filter(rank < rank.limit) %>%
     transmute(
         epoch = epoch,
         ancestors = nancestors,
-        nparents.per100 = 100 * nparents,
-        age.x10 = 0.1 * age,
+        age.centuries = 1e-2 * age,
         treesize = treesize
     ) %>%
     melt(id.vars = "epoch") %>%
@@ -208,17 +203,16 @@ pop.plot <- df.population %>%
 
 df.meta <- setNames(
     read.csv("data/game.meta.csv", header=F),
-    c("epoch", "rank", agent.cols, pod.game.cols)
+    c("epoch", "opponent", "rank", agent.cols, pod.game.cols)
 ) %>%
     mutate(win = as.numeric(relative >= 1))
 
 ## df.meta %>% filter(epoch == max(epoch))
 
-span <- 1
+span <- NULL
 ref.plot <- ggplot(
-    df.meta,
-    aes(x = epoch, y = relative, shape = as.factor(did.finish)## , color = as.factor(rank), group = as.factor(rank)
-        )
+    df.meta %>% filter(rank == 1),
+    aes(x = epoch, y = relative, shape = as.factor(did.finish), color = opponent, group = opponent)
 ) +
     geom_point(aes(size=age), alpha=0.25) +
     geom_smooth(se=F, span=span, aes(shape = NULL)) + ## relative speed
@@ -230,17 +224,17 @@ ref.plot <- ggplot(
 ## COMBINE PLOTS
 grid.arrange(pop.plot, ref.plot, ncol=2)
 
-summary(lm(win~epoch, data = df.meta %>% filter(rank == 0)))
+summary(lm(win~epoch, data = df.meta %>% filter(rank == 1, opponent == "refbot")))
 
 df.meta %>%
+    filter(rank == 1, opponent == "refbot") %>%
     mutate(decade = ceiling(epoch / 10)) %>%
     group_by(decade, rank) %>%
     summarize(
         winrate = mean(win),
         rel.speed = mean(relative),
         n = n()
-    ) %>%
-    filter(rank == 0)
+    ) 
 
 
 ## ****************************************
@@ -249,36 +243,79 @@ df.meta %>%
 
 df <- setNames(
     read.csv("data/game.csv", header=F),
-    c("game.id", "turn", "team", "lap", "player.id", "x", "y", "reward")
+    c(
+        "epoch", "rank", "opponent",
+        "game.id", "turn", "team", "lap", "player.id", "x", "y",
+        "angle", "shield", "boost.count", "reward",
+        "cp.xs", "cp.ys"
+    )
 )
 
+arrow.size <- 400
 df = df %>% group_by(game.id, player.id) %>%
     mutate(
         dx = c(0, diff(x)),
         dy = c(0, diff(y)),
-        speed = sqrt(dx^2 + dy^2)
+        speed = sqrt(dx^2 + dy^2),
+        arrow.x0 = x - arrow.size * cos(angle),
+        arrow.y0 = y - arrow.size * sin(angle),
+        arrow.x1 = x + arrow.size * cos(angle),
+        arrow.y1 = y + arrow.size * sin(angle),
     ) %>%
     group_by
 
-## hack: drop last ten games to get rank N player
-N <- 0
-idx <- 5
-gid <- head(tail(unique(df$game.id), 5*(3*idx + 2-N)+1), 1)
-
 df.game <- df %>%
-    filter(game.id == gid)
+    filter(epoch == max(epoch), rank == 0) %>%
+    filter(game.id == sample(game.id, 1))
 
-p <- ggplot(
-    df.game,
+df.cps <- df.game %>%
+    head(1) %>%
+    do(data.frame(
+        cp.xs = as.numeric(strsplit(as.character(.$cp.xs), " ")[[1]]),
+        cp.ys = as.numeric(strsplit(as.character(.$cp.ys), " ")[[1]])
+    )) %>%
+    mutate(cp.idx = 1:n())
+
+df.game <- df.game %>% select(-cp.xs, -cp.ys)
+
+ggplot(
+    df.game %>% filter(turn < 40, turn %% 2 == 0),
     aes(x, y,
-        frame = turn,
-        color = speed, 
-        shape = as.factor(team),
-        size = lap
+        color = as.factor(team), 
+        ## shape = as.factor(lap),
+        ## size = reward,
         )
-) + geom_point() 
+) +
 
-ggplotly(p)
+    ## arrow
+    geom_segment(
+        aes(
+            x = arrow.x0,
+            y = arrow.y0,
+            xend = arrow.x1,
+            yend = arrow.y1
+        ), arrow = arrow(length = unit(0.03, "npc"))
+    ) +
+
+    ## pod
+    geom_point(
+        size = 2,
+        aes(shape = as.factor(player.id))
+    ) +
+
+    ## shield
+    geom_point(
+        data = df.game %>% filter(shield, turn < 40),
+        color = "blue",
+        alpha = 0.4
+    ) +
+
+    ## checkpoints
+    geom_point(
+        data = df.cps,
+        size = 10,
+        aes(x = cp.xs, y = cp.ys, frame = NULL, color = NULL, size = NULL, shape = as.factor(cp.idx))
+    ) 
 
 
 ## ****************************************
