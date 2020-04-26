@@ -6,3 +6,4 @@ archive/*
 build/*
 .Rhistory
 perf.*
+save/*
