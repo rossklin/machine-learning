@@ -20,7 +20,7 @@ class game {
   virtual void reset();
 
   virtual double winner_reward(int epoch) = 0;
-  virtual record_table increment() = 0;
+  virtual record_table increment(std::string row_prefix = "") = 0;
   virtual bool finished() = 0;
   virtual std::string end_stats() = 0;
   virtual int select_winner() = 0;
@@ -29,7 +29,7 @@ class game {
   virtual vec vectorize_choice(choice_ptr c, int pid) const = 0;
   virtual vec vectorize_state(int pid) const = 0;
 
-  hm<int, std::vector<record>> play(int epoch);
+  hm<int, std::vector<record>> play(int epoch, std::string row_prefix = "");
   choice_ptr select_choice(agent_ptr a);
   std::vector<int> team_clone_ids(int tid) const;
   vec vectorize_input(choice_ptr c, int pid) const;

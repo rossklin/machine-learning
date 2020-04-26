@@ -58,7 +58,7 @@ pod_game::pod_game(player_table pl) : game(pl) {
   }
 }
 
-record_table pod_game::increment() {
+record_table pod_game::increment(string row_prefix) {
   record_table res;
   hm<int, double> htab_before = htable();
   auto agents = typed_agents;
@@ -174,12 +174,28 @@ record_table pod_game::increment() {
 
   // todo: validate that pods pass checkpoints and laps
   if (enable_output) {
+    string cp_xs = join_string(map<point, string>([](point a) -> string { return to_string(int(a.x)); }, checkpoint), " ");
+    string cp_ys = join_string(map<point, string>([](point a) -> string { return to_string(int(a.y)); }, checkpoint), " ");
+
     // write csv output
     fstream f("data/game.csv", ios::app);
     for (auto x : typed_agents) {
       int pid = x.first;
       pod_agent::ptr p = x.second;
-      f << game_id << "," << turns_played << "," << p->team << "," << p->data.lap << "," << pid << "," << p->data.x.x << ", " << p->data.x.y << ", " << res[pid].reward << endl;
+      f << row_prefix
+        << game_id << comma
+        << turns_played << comma
+        << p->team << comma
+        << p->data.lap << comma
+        << pid << comma
+        << p->data.x.x << comma
+        << p->data.x.y << comma
+        << p->data.a << comma
+        << p->data.shield_active << comma
+        << p->data.boost_count << comma
+        << res[pid].reward << comma
+        << cp_xs << comma
+        << cp_ys << endl;
     }
     f.close();
   }
@@ -193,7 +209,6 @@ bool pod_game::finished() {
 
 std::string pod_game::end_stats() {
   stringstream ss;
-  string comma = ",";
 
   auto h = htable();
   int pid = team_clone_ids(0).front();

@@ -28,11 +28,11 @@ void game::initialize() {
   turns_played = 0;
 }
 
-hm<int, vector<record>> game::play(int epoch) {
+hm<int, vector<record>> game::play(int epoch, string row_prefix) {
   hm<int, vector<record>> res;
 
   for (turns_played = 0; turns_played < max_turns && !finished(); turns_played++) {
-    record_table rect = increment();
+    record_table rect = increment(row_prefix);
     for (auto x : rect) res[x.first].push_back(x.second);
   }
 

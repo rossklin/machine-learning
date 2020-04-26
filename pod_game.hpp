@@ -43,15 +43,15 @@ class pod_game : public game, public std::enable_shared_from_this<pod_game> {
 
  public:
   pod_game(player_table pl);
-  void initialize();
-  record_table increment();
-  bool finished();
-  std::string end_stats();
-  int select_winner();
-  double score_simple(int pid);
-  void reset();
-  std::vector<choice_ptr> generate_choices(agent_ptr a);
+  void initialize() override;
+  record_table increment(std::string row_prefix = "") override;
+  bool finished() override;
+  std::string end_stats() override;
+  int select_winner() override;
+  double score_simple(int pid) override;
+  void reset() override;
+  std::vector<choice_ptr> generate_choices(agent_ptr a) override;
   vec vectorize_choice(choice_ptr c, int pid) const override;
   vec vectorize_state(int pid) const override;
-  double winner_reward(int epoch);
+  double winner_reward(int epoch) override;
 };

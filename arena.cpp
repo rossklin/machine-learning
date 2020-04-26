@@ -37,15 +37,33 @@ void write_stats(int epoch, game_generator_ptr ggn, population_manager_ptr pop) 
 
   // reference game
   stringstream ss;
+  string row_prefix;
   for (int rank = 0; rank < 3; rank++) {
+    row_prefix = to_string(epoch) + "," + to_string(rank) + ",refbot,";
+    // play five refgames vs refbot
     for (int j = 0; j < 5; j++) {
       agent_ptr a = pop->pop[rank];
       game_ptr gr = ggn->team_bots_vs(a);
 
       gr->enable_output = true;
-      gr->play(epoch);
+      gr->play(epoch, row_prefix);
 
-      ss << epoch << comma << rank << comma << a->status_report() << comma << gr->end_stats() << endl;
+      ss << epoch << comma << "refbot" << comma << a->rank << comma << a->status_report() << comma << gr->end_stats() << endl;
+    }
+
+    // play five refgames vs retired agents
+    if (!pop->retirement.size()) continue;
+
+    row_prefix = to_string(epoch) + "," + to_string(rank) + ",retiree,";
+    for (int j = 0; j < 5; j++) {
+      agent_ptr a = pop->pop[rank];
+      agent_ptr b = pop->retirement.back();
+      game_ptr gr = ggn->generate_starting_state(ggn->make_teams({a, b}));
+
+      gr->enable_output = true;
+      gr->play(epoch, row_prefix);
+
+      ss << epoch << comma << "retiree" << comma << a->rank << comma << a->status_report() << comma << gr->end_stats() << endl;
     }
   }
 
