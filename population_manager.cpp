@@ -73,10 +73,6 @@ void population_manager::check_gg(game_generator_ptr gg) const {
 void population_manager::prepare_epoch(int epoch, game_generator_ptr gg) {
   check_gg(gg);
 
-  double ltime = log(epoch + 100);
-  int protected_age = ltime / 2 + 1;
-  int protected_mut_age = ltime / 5 + 1;
-
   // fill remaining population with new samples
   int n_fill = popsize - pop.size();
 
@@ -95,7 +91,7 @@ void population_manager::prepare_epoch(int epoch, game_generator_ptr gg) {
   // set agent selector randomness and score
   double q = 0.5 - 0.4 * sigmoid(epoch, 100);
   for (auto a : pop) {
-    a->last_score = a->score;
+    a->last_rank = a->rank;
     a->set_exploration_rate(q);
   }
 
@@ -114,6 +110,7 @@ double mate_score(agent_ptr parent1, agent_ptr x) {
 
 void population_manager::sortpop() {
   sort(pop.begin(), pop.end(), [](agent_ptr a, agent_ptr b) -> bool { return a->score > b->score; });
+  for (int i = 0; i < pop.size(); i++) pop[i]->rank = i + 1;
 }
 
 void population_manager::evolve(game_generator_ptr gg) {
@@ -149,13 +146,13 @@ void population_manager::evolve(game_generator_ptr gg) {
   simple_score_limit = 0.1 * pop[lim_idx]->simple_score + 0.9 * simple_score_limit;
 
   auto cond_drop = [](agent_ptr a) {
-    return !(a->tstats.rate_successfull > 0.5);
+    return a->tstats.rate_successfull < 0.5;
   };
 
   vector<agent_ptr> player_buf;
   for (int i = 0; i < nkeep; i++) {
     agent_ptr a = pop[i];
-    if (cond_drop(a)) {
+    if (!cond_drop(a)) {
       player_buf.push_back(a);
     } else if (i < 3) {
       retirement.insert(retirement.begin(), a);
@@ -163,11 +160,12 @@ void population_manager::evolve(game_generator_ptr gg) {
   }
   while (retirement.size() > 100) retirement.pop_back();
   int n_drop = nkeep - player_buf.size();
+  int result_keep = player_buf.size();
 
   // protect children and players who's scores are still increasing
   int n_protprog = 0;
-  int n_protchild = 0;
-  int n_protmut = 0;
+  // int n_protchild = 0;
+  // int n_protmut = 0;
   for (int i = nkeep; i < pop.size(); i++) {
     agent_ptr a = pop[i];
 
@@ -179,25 +177,16 @@ void population_manager::evolve(game_generator_ptr gg) {
 
     // update protection after adding agent so scores are calculated
     // before the agent is evaluated
-    double delta = a->score - a->last_score;
-    double limit_score = pop[nkeep - 1]->score - a->score;
-    bool protect_progress = delta > limit_score / 20;
-    bool protect_child = a->age <= protected_age;
-    bool protect_mutant = a->mut_age <= protected_mut_age;
-
-    a->was_protected = protect_progress || protect_child || protect_mutant;
-
-    // Maybe I'm just tired but we must allow the agent to be protected the first round, that's like the main point?
-    if (a->was_protected) player_buf.push_back(a);
-
-    n_protmut += protect_mutant;
-    n_protprog += protect_progress;
-    n_protchild += protect_child;
+    if (a->rank < a->last_rank - 2) {
+      a->was_protected = true;
+      player_buf.push_back(a);
+      n_protprog++;
+    }
   }
 
   int free_spots = popsize - player_buf.size();
 
-  cout << "PM: keeping " << nkeep << ", dropping " << n_drop << " , protected " << n_protprog << " progressors, " << n_protmut << " mutants and " << n_protchild << " children" << endl;
+  cout << "PM: keeping " << result_keep << ", dropping " << n_drop << " , protected " << n_protprog << " progressors" << endl;
 
   auto mate_generator = [this, nkeep]() -> agent_ptr {
     int idx1 = rand_int(0, nkeep - 1);

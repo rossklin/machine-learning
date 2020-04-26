@@ -67,7 +67,8 @@ agent::agent() : csel(0.2) {
 
   original_id = -1;
   score = 0;
-  last_score = 0;
+  rank = 0;
+  last_rank = 0;
   simple_score = 0;
   was_protected = false;
   age = 0;
@@ -140,7 +141,7 @@ agent_ptr agent::mate(agent_ptr p) const {
   a->ancestors = set_union(ancestors, p->ancestors);
   a->ancestors.insert(id);
   a->ancestors.insert(p->id);
-  a->score = a->last_score = 0.5 * 0.9 * (score + p->score);
+  a->score = 0.5 * 0.9 * (score + p->score);
   a->simple_score = 0.5 * 0.9 * (simple_score + p->simple_score);
   a->original_id = -1;
   return a;
@@ -151,7 +152,7 @@ agent_ptr agent::mutate() const {
   a->eval->mutate();
   a->parents = parents;
   a->ancestors = ancestors;
-  a->score = a->last_score = 0.9 * score;
+  a->score = 0.9 * score;
   a->simple_score = 0.9 * simple_score;
   a->age = age;
   a->original_id = -1;
@@ -169,12 +170,12 @@ void agent::initialize_from_input(input_sampler s, int choice_dim) {
 std::string agent::serialize() const {
   stringstream ss;
 
-  ss << id << sep << score << sep << last_score << sep << simple_score << sep << was_protected << sep << age << sep << mut_age << sep << ancestors << sep << parents << sep << csel.serialize() << sep << eval->tag << sep << eval->serialize();
+  ss << id << sep << score << sep << rank << sep << simple_score << sep << was_protected << sep << age << sep << mut_age << sep << ancestors << sep << parents << sep << csel.serialize() << sep << eval->tag << sep << eval->serialize();
   return ss.str();
 }
 
 void agent::deserialize(std::stringstream &ss) {
-  ss >> id >> score >> last_score >> simple_score >> was_protected >> age >> mut_age >> ancestors >> parents;
+  ss >> id >> score >> rank >> simple_score >> was_protected >> age >> mut_age >> ancestors >> parents;
   csel.deserialize(ss);
 
   string tag;

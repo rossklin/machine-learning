@@ -42,7 +42,8 @@ class agent : public std::enable_shared_from_this<agent> {
   int team_index;
   int assigned_game;
   double score;
-  double last_score;
+  int last_rank;
+  int rank;
   double simple_score;
   bool was_protected;
   int age;
