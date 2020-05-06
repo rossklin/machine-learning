@@ -41,7 +41,7 @@ class pod_game : public game, public std::enable_shared_from_this<pod_game> {
 
  public:
   std::vector<point> checkpoint;
-  hm<int, std::vector<pod_agent::ptr>> typed_agents;
+  std::vector<pod_agent::ptr> typed_agents;
 
   pod_game(hm<int, team> ts);
   void initialize() override;
@@ -56,4 +56,5 @@ class pod_game : public game, public std::enable_shared_from_this<pod_game> {
   vec vectorize_choice(choice_ptr c, int pid) const override;
   vec vectorize_state(int pid) const override;
   double winner_reward(int epoch) override;
+  int agent_team(int pid) const;
 };

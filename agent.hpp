@@ -6,6 +6,7 @@
 #include <string>
 
 #include "choice.hpp"
+#include "team.hpp"
 #include "types.hpp"
 
 enum agent_class {
@@ -55,7 +56,7 @@ class agent : public std::enable_shared_from_this<agent> {
   std::string label;
   std::set<int> parents;
   std::set<int> ancestors;
-  std::vector<agent_ptr> parent_buf;  // for use in prepared player
+  std::vector<team> tutor_buf;  // for use in prepared player
 
   // constructors
   agent();

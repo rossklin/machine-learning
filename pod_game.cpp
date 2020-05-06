@@ -14,6 +14,16 @@
 using namespace std;
 using namespace pod_game_parameters;
 
+pod_game::pod_game(hm<int, team> ts) : game(ts) {
+  max_turns = 300;
+
+  for (auto x : ts) {
+    for (auto a : x.second.players) {
+      typed_agents.push_back(static_pointer_cast<pod_agent>(a));
+    }
+  }
+}
+
 void pod_game::initialize() {
   reset();
 
@@ -30,7 +40,7 @@ void pod_game::initialize() {
   int pc = 0;
 
   auto gen_pod = [this, &pc, v0, a01]() -> pod_data {
-    point start = checkpoint[0] + (players.size() / (double)2 - pc - 0.5) * 2 * pod_radius * v0;
+    point start = checkpoint[0] + (typed_agents.size() / (double)2 - pc - 0.5) * 2 * pod_radius * v0;
     pc++;
 
     // point x;
@@ -45,7 +55,7 @@ void pod_game::initialize() {
     return {start, {0, 0}, a01, 0, 0, 0, 1, 0};
   };
 
-  for (auto x : typed_agents) x.second->data = gen_pod();
+  for (auto x : typed_agents) x->data = gen_pod();
 }
 
 void pod_game::setup_from_input(istream &s) {
@@ -61,13 +71,6 @@ void pod_game::setup_from_input(istream &s) {
 int pod_choice::vector_dim() { return 4; }
 bool pod_choice::validate() { return true; }
 
-pod_game::pod_game(player_table pl) : game(pl) {
-  max_turns = 300;
-  for (auto x : players) {
-    typed_agents[x.first] = static_pointer_cast<pod_agent>(x.second);
-  }
-}
-
 record_table pod_game::increment(string row_prefix) {
   record_table res;
   hm<int, double> htab_before = htable();
@@ -77,13 +80,12 @@ record_table pod_game::increment(string row_prefix) {
   };
 
   // proceess choices
-  for (auto x : agents) {
-    int pid = x.first;
-    pod_agent::ptr p = x.second;
+  for (auto p : typed_agents) {
+    int pid = p->id;
 
     shared_ptr<pod_choice> c = static_pointer_cast<pod_choice>(p->select_choice(shared_from_this()));
     res[pid].input = vectorize_input(c, pid);
-    res[pid].output = p->evaluate_choice(res[x.first].input);
+    res[pid].output = p->evaluate_choice(res[pid].input);
 
     p->data.a += fmin(angular_speed, fabs(c->angle)) * signum(c->angle);
 
@@ -108,7 +110,7 @@ record_table pod_game::increment(string row_prefix) {
 
   // check collisions
   vector<pod_data *> check;
-  for (auto &x : agents) check.push_back(&x.second->data);
+  for (auto a : typed_agents) check.push_back(&a->data);
 
   int n = check.size();
   for (int i = 0; i < n - 1; i++) {
@@ -140,9 +142,8 @@ record_table pod_game::increment(string row_prefix) {
   }
 
   // update checkpoint and lap info
-  for (auto x : agents) {
-    pod_agent::ptr p = x.second;
-    int pid = x.first;
+  for (auto p : typed_agents) {
+    int pid = p->id;
 
     int idx = modulo(p->data.passed_checkpoint + 1, (int)checkpoint.size());
     if (distance(p->data.x, checkpoint[idx]) < checkpoint_radius) {
@@ -151,7 +152,7 @@ record_table pod_game::increment(string row_prefix) {
         p->data.lap++;
 
         if (p->data.lap >= run_laps) {
-          winner = p->team;
+          winner = agent_team(p->id);
           did_finish = true;
         }
       }

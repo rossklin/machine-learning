@@ -220,6 +220,25 @@ T hash_sample(hm<int, T> x) {
   return def;
 }
 
+template <typename K, typename V>
+void hm_apply(std::function<(K k, V v)> f, hm<K, V> data) {
+  for (auto x : data) f(x.first, x.second);
+}
+
+template <typename T>
+std::vector<T> replicate(std::function<T()> f, int n) {
+  std::vector<T> res;
+  for (int i = 0; i < n; i++) res.push_back(f());
+  return res;
+}
+
+template <typename T>
+double vector_sum(std::vector<T> x) {
+  double sum = 0;
+  for (auto y : x) sum += y;
+  return sum;
+}
+
 template <typename T>
 std::vector<T> vector_merge(std::vector<std::vector<T>> x) {
   if (x.empty()) return {};

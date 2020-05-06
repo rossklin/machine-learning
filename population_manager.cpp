@@ -103,7 +103,8 @@ void population_manager::prepare_epoch(int epoch, game_generator_ptr gg) {
 }
 
 double mate_score(agent_ptr parent1, agent_ptr x) {
-  // direct descendant
+  // direct descendant or same agent
+  if (parent1->id == x->id) return 0;
   if (parent1->parents.count(x->id) || x->parents.count(parent1->id)) return 0;
 
   double different_ancestors = set_symdiff(x->ancestors, parent1->ancestors).size();
@@ -211,27 +212,38 @@ void population_manager::evolve(game_generator_ptr gg) {
 
   auto mate_generator = [this, nkeep, qtrial]() -> agent_ptr {
     agent_ptr parent1;
-    vector<agent_ptr> buf = vector_merge(map<team, vector<agent_ptr>>([](team t) { return t.players; }, pop));
+    vector<team> tutors;
 
     if (retirement.size() && u01() > qtrial) {
       // use a retired agent as parent
-      parent1 = sample_one(sample_one(retirement).players);
+      tutors.push_back(sample_one(retirement));
     } else {
       // use a top agent from population as parent
-      int idx1 = rand_int(0, ppt * nkeep - 1);
-      parent1 = buf[idx1];
-      buf.erase(buf.begin() + idx1);
+      int idx1 = rand_int(0, nkeep - 1);
+      tutors.push_back(pop[idx1]);
     }
 
+    parent1 = sample_one(tutors.front().players);
+
+    vector<agent_ptr> buf = vector_merge(map<team, vector<agent_ptr>>([](team t) { return t.players; }, pop));
     sort(buf.begin(), buf.end(), [parent1](agent_ptr a, agent_ptr b) {
       return mate_score(parent1, a) > mate_score(parent1, b);
     });
 
     agent_ptr parent2 = ranked_sample(buf, 0.5);
+
+    // find team of parent2 and add to tutors
+    for (auto t : pop) {
+      if (vector_any(map<agent_ptr, bool>([parent2](agent_ptr a) { return a->id == parent2->id; }, t.players))) {
+        tutors.push_back(t);
+        break;
+      }
+    }
+
     agent_ptr child = parent1->mate(parent2);
 
-    child->parent_buf = {parent1, parent2};
-    if (retirement.size() > 0) child->parent_buf.push_back(sample_one(sample_one(retirement).players));
+    child->tutor_buf = tutors;
+    if (retirement.size() > 0) child->tutor_buf.push_back(sample_one(retirement));
     return child;
   };
 
@@ -239,8 +251,8 @@ void population_manager::evolve(game_generator_ptr gg) {
     int idx1 = rand_int(0, nkeep - 1);
     agent_ptr parent = sample_one(pop[idx1].players);
     agent_ptr child = parent->mutate();
-    child->parent_buf = {parent};
-    if (retirement.size() > 0) child->parent_buf.push_back(sample_one(sample_one(retirement).players));
+    child->tutor_buf = {pop[idx1]};
+    if (retirement.size() > 0) child->tutor_buf.push_back(sample_one(retirement));
     return child;
   };
 
