@@ -3,6 +3,7 @@
 #include <cassert>
 
 #include "pod_game.hpp"
+#include "utility.hpp"
 
 using namespace std;
 
@@ -28,5 +29,8 @@ game_ptr pod_game_generator::generate_starting_state(std::vector<agent_ptr> p) c
 
 // require the first 5 inputs be included for a functioning evaluator
 set<int> pod_game_generator::required_inputs() const {
-  return {0, 1, 2, 4, 9};
+  assert(nr_of_teams == 2);
+  set<int> buf{0, 1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19};
+  if (ppt > 1) buf = set_union(buf, set<int>({31, 32, 44, 45}));
+  return buf;
 }

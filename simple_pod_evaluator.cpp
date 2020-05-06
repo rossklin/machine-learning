@@ -9,9 +9,9 @@ using namespace pod_game_parameters;
 // return basic on-track feature
 double simple_pod_evaluator::evaluate(vec x) {
   double thrust = x[1];
-  double a_ncp = x[4];
+  double a_ncp = x[9];
   double c_angle = x[0];
-  double dist = x[9];
+  double dist = x[10];
   bool boost = x[2] > 0;
 
   double target_angle = signum(a_ncp) * fmin(fabs(a_ncp), angular_speed);

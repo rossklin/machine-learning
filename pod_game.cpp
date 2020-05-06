@@ -298,56 +298,49 @@ std::vector<choice_ptr> pod_game::generate_choices(agent_ptr p_base) {
 
 vec pod_game::vectorize_state(int pid) const {
   assert(players.count(pid) > 0);
-  vector<double> x;
+
+  // relative pod data: 13 datapoints
   pod_data a = typed_agents.at(pid)->data;
+  vector<double> x(typed_agents.size() * 13 + 1);
+  int idx = 0;
 
-  auto relad = [&x, a](point p, point q) {
-    x.push_back(angle_difference(point_angle(q - p), a.a));
-    x.push_back(distance(p, q));
+  // add the team index
+  x[idx++] = typed_agents.at(pid)->team_index;  // 4
+
+  auto add_pod = [this, a, &x, &idx](pod_data b) {
+    auto relad = [&](point p) {
+      x[idx++] = angle_difference(point_angle(p - a.x), a.a);
+      x[idx++] = distance(a.x, p);
+    };
+
+    relad(b.x);                                          // 5-6
+    relad(a.x + b.v);                                    // 7-8
+    relad(get_checkpoint(b.passed_checkpoint + 1));      // 9-10
+    relad(get_checkpoint(b.passed_checkpoint + 2));      // 11-12
+    x[idx++] = run_laps - b.lap;                         // 13
+    x[idx++] = checkpoint.size() - b.passed_checkpoint;  // 14
+    x[idx++] = angle_difference(b.a, a.a);               // 15
+    x[idx++] = b.shield_active;                          // 16
+    x[idx++] = b.boost_count;                            // 17
   };
 
-  // feature: direction towards next checkpoint
-  double a_ncp = angle_difference(point_angle(get_checkpoint(a.passed_checkpoint + 1) - a.x), a.a);
-  x.push_back(a_ncp);  // 4
+  // add self
+  add_pod(a);
 
-  // team role index
-  x.push_back(players.at(pid)->team_index);  // 5
-
-  // current angle and speed
-  relad({0, 0}, a.v);  // 6-7
-
-  // angle and distance to next checkpoint
-  relad(a.x, get_checkpoint(a.passed_checkpoint + 1));  // 8-9
-
-  // angle and distance for subsequent checkpoint
-  relad(get_checkpoint(a.passed_checkpoint + 1), get_checkpoint(a.passed_checkpoint + 2));
-
-  // laps and checkpoints remaining
-  x.push_back(run_laps - a.lap);
-  x.push_back(checkpoint.size() - a.passed_checkpoint);
-
-  // relative pod data
-  auto add_other = [this, &x, relad, a](pod_data p) {
-    relad(a.x, p.x);
-    relad({0, 0}, p.v);
-    relad(p.x, get_checkpoint(p.passed_checkpoint + 1));
-    x.push_back(run_laps - p.lap);
-    x.push_back(checkpoint.size() - p.passed_checkpoint);
-    x.push_back(angle_difference(p.a, a.a));
-    x.push_back(p.shield_active);
-  };
-
-  // add team members
+  // add team members ordered by team index
+  vector<pod_agent::ptr> buf;
   for (auto y : typed_agents) {
     if (y.first != pid && y.second->team == players.at(pid)->team) {
-      add_other(y.second->data);  // 13-22
+      buf.push_back(y.second);
     }
   }
+  if (buf.size() > 1) sort(buf.begin(), buf.end(), [](agent_ptr a, agent_ptr b) { return a->team_index < b->team_index; });
+  for (auto b : buf) add_pod(b->data);  // 18-30
 
   // add opponents
   for (auto y : typed_agents) {
     if (y.first != pid && y.second->team != players.at(pid)->team) {
-      add_other(y.second->data);  // 23-42
+      add_pod(y.second->data);  // 31-56
     }
   }
 
