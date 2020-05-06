@@ -165,8 +165,8 @@ double agent::evaluate_choice(vec x) const {
   return eval->evaluate(x);
 }
 
-void agent::initialize_from_input(input_sampler s, int choice_dim) {
-  eval->initialize(s, choice_dim);
+void agent::initialize_from_input(input_sampler s, int choice_dim, set<int> ireq) {
+  eval->initialize(s, choice_dim, ireq);
 };
 
 std::string agent::serialize() const {

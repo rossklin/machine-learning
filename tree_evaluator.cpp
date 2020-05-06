@@ -213,7 +213,7 @@ void tree_evaluator::tree::mutate(int dim) {
   }
 
   double p_grow = 0.01;
-  double p_reduce = 0.001;
+  double p_reduce = 0.01;
 
   if (subtree.size() > 0) {
     if (u01() < p_reduce) {
@@ -250,13 +250,15 @@ void tree_evaluator::tree::mutate(int dim) {
       }
 
       for (auto &t : subtree) {
+        int n = min(dim, rand_int(2, 20));
+        vector<int> ibuf = vector_sample(seq(0, dim - 1), n);
         t = tree::ptr(new tree);
-        t->initialize(dim, rand_int(1, 5));
+        t->initialize(ibuf);
       }
     } else if (class_id == CONSTANT_TREE && u01() < 0.1) {
       // modify constant
       const_value += rnorm(0, 0.1);
-    } else if (class_id == INPUT_TREE && u01() < 0.01) {
+    } else if (class_id == INPUT_TREE && u01() < 0.1) {
       // process different index
       input_index = rand_int(0, dim - 1);
     }
@@ -325,12 +327,11 @@ double tree_evaluator::tree::evaluate(const vec &x) {
   return resbuf = w * val;
 }
 
-void tree_evaluator::tree::initialize(int dim, int depth) {
-  double p_cut = 1 / (double)(depth + 1);
+void tree_evaluator::tree::initialize(vector<int> inputs) {
   subtree.clear();
   w = rnorm();
 
-  if (depth > 0 && u01() < (1 - p_cut)) {
+  if (inputs.size() > 1) {
     if (u01() < 0.3) {
       // weight
       class_id = WEIGHT_TREE;
@@ -347,19 +348,30 @@ void tree_evaluator::tree::initialize(int dim, int depth) {
       fname = sample_one(hm_keys(binary_ops()));
       subtree.resize(2);
     }
-  } else if (u01() < 0.5) {
+  } else if (inputs.size() == 1) {
+    // input parameter
+    class_id = INPUT_TREE;
+    input_index = inputs.front();
+  } else {
     // constant
     class_id = CONSTANT_TREE;
     const_value = rnorm();
-  } else {
-    // input parameter
-    class_id = INPUT_TREE;
-    input_index = ranked_sample(seq(0, dim - 1), 0.2);
   }
 
-  for (auto &t : subtree) {
-    t = tree::ptr(new tree);
-    t->initialize(dim, depth - 1);
+  for (int i = 0; i < subtree.size(); i++) {
+    float m = inputs.size() / float(subtree.size() - i);
+    int ntake = rnorm(m, m / 2);
+    if (ntake < 0) ntake = 0;
+    if (ntake > inputs.size() || i == subtree.size() - 1) ntake = inputs.size();
+
+    vector<int> ibuf;
+    if (ntake > 0) {
+      ibuf.insert(ibuf.begin(), inputs.begin(), inputs.begin() + ntake);
+      inputs.erase(inputs.begin(), inputs.begin() + ntake);
+    }
+
+    subtree[i] = tree::ptr(new tree);
+    subtree[i]->initialize(ibuf);
   }
 }
 
@@ -606,8 +618,6 @@ bool tree_evaluator::update(vector<record> results, int age, double &rel_change)
   if (stable && wlen > weight_limit) {
     root->set_weights(weight_limit / wlen * x);
     prune();
-
-    assert(l2norm(root->get_weights()) <= 1.1 * weight_limit);
   }
 
   return stable;
@@ -746,14 +756,23 @@ void tree_evaluator::example_setup(int cdim) {
   cout << "tree_evaluator::example_setup: complete with size " << root->count_trees() << endl;
 }
 
-void tree_evaluator::initialize(input_sampler sampler, int cdim) {
+void tree_evaluator::initialize(input_sampler sampler, int cdim, set<int> ireq) {
   stable = true;
   dim = cdim;
   learning_rate = fabs(rnorm(0, 0.5));
   weight_limit = u01(100, 10000);
 
+  // prepare input indices for the tree to use
+  vector<int> ibuf;
+  for (int i = 0; i < cdim; i++) {
+    int n = ranked_sample(seq(0, 3), 0.5);
+    if (ireq.count(i)) n = ranked_sample(seq(1, 3), 0.8);
+    ibuf.insert(ibuf.end(), n, i);
+  }
+  random_shuffle(ibuf.begin(), ibuf.end());
+
   root = tree::ptr(new tree);
-  root->initialize(dim, depth);
+  root->initialize(ibuf);
 }
 
 string tree_evaluator::status_report() const {

@@ -24,7 +24,7 @@ class tree_evaluator : public evaluator {
     double resbuf;
 
     double evaluate(const vec &x);
-    void initialize(int dim, int depth);
+    void initialize(std::vector<int> inputs);
     ptr get_subtree(double p_cut);
     void emplace_subtree(ptr, double p_put);
     ptr clone();
@@ -59,7 +59,7 @@ class tree_evaluator : public evaluator {
   evaluator_ptr mutate() const override;
   std::string serialize() const override;
   void deserialize(std::stringstream &ss) override;
-  void initialize(input_sampler sampler, int cdim) override;
+  void initialize(input_sampler sampler, int cdim, std::set<int> ireq) override;
   std::string status_report() const override;
   evaluator_ptr clone() const override;
   double complexity_penalty() const override;

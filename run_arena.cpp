@@ -62,15 +62,16 @@ int main(int argc, char **argv) {
   game_generator_ptr ggen(new pod_game_generator(tpg, ppt, refbot_gen));
   ggen->prep_npar = prep_npar;
   ggen->max_turns = max_turns;
+  set<int> ireq = ggen->required_inputs();
 
   input_sampler is = ggen->generate_input_sampler();
   int cdim = ggen->choice_dim();
 
-  agent_f agent_gen = [is, cdim, tree_depth]() {
+  agent_f agent_gen = [is, cdim, tree_depth, ireq]() {
     agent_ptr a(new pod_agent);
     a->eval = evaluator_ptr(new tree_evaluator(tree_depth));
     a->label = "tree-pod";
-    a->initialize_from_input(is, cdim);
+    a->initialize_from_input(is, cdim, ireq);
     return a;
   };
 

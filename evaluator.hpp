@@ -23,7 +23,7 @@ class evaluator {
   virtual evaluator_ptr mutate() const = 0;
   virtual std::string serialize() const;
   virtual void deserialize(std::stringstream &ss);
-  virtual void initialize(input_sampler sampler, int cdim) = 0;
+  virtual void initialize(input_sampler sampler, int cdim, std::set<int> ireq) = 0;
   virtual std::string status_report() const = 0;
   virtual evaluator_ptr clone() const = 0;
   virtual double complexity_penalty() const = 0;

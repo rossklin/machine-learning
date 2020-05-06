@@ -39,13 +39,16 @@ void pure_train() {
   vector<agent_ptr> pop(1000);
   input_sampler isam = ggen.generate_input_sampler();
   int cdim = ggen.choice_dim();
+  set<int> ireq = ggen.required_inputs();
 
-  auto vgen = [ggen, cdim, isam]() -> agent_ptr {
+  cout << "cdim: " << cdim << endl;
+
+  auto vgen = [ggen, cdim, isam, ireq]() -> agent_ptr {
     agent_ptr a = agent_gen(cdim);
-    a->initialize_from_input(isam, cdim);
-    while (set_difference(ggen.required_inputs(), a->eval->list_inputs()).size() > 0) {
+    a->initialize_from_input(isam, cdim, ireq);
+    while (set_difference(ireq, a->eval->list_inputs()).size() > 0) {
       a = agent_gen(cdim);
-      a->initialize_from_input(isam, cdim);
+      a->initialize_from_input(isam, cdim, ireq);
     }
     return a;
   };

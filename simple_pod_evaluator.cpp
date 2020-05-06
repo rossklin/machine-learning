@@ -38,7 +38,7 @@ evaluator_ptr simple_pod_evaluator::mutate() const { return evaluator_ptr(new si
 evaluator_ptr simple_pod_evaluator::clone() const { return evaluator_ptr(new simple_pod_evaluator); }
 std::string simple_pod_evaluator::serialize() const { return "simple_pod_evaluator"; }
 void simple_pod_evaluator::deserialize(std::stringstream &data) {}
-void simple_pod_evaluator::initialize(input_sampler sampler, int cdim) {}
+void simple_pod_evaluator::initialize(input_sampler sampler, int cdim, set<int> ireq) {}
 std::string simple_pod_evaluator::status_report() const { return "dummy status"; }
 double simple_pod_evaluator::complexity_penalty() const { return 0; }
 double simple_pod_evaluator::complexity() const { return 0; }

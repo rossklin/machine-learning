@@ -13,7 +13,7 @@ class simple_pod_evaluator : public evaluator {
   evaluator_ptr clone() const override;
   std::string serialize() const override;
   void deserialize(std::stringstream &ss) override;
-  void initialize(input_sampler sampler, int cdim) override;
+  void initialize(input_sampler sampler, int cdim, std::set<int> ireq) override;
   std::string status_report() const override;
   double complexity_penalty() const override;
   double complexity() const;
