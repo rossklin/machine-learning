@@ -17,7 +17,7 @@ class game_generator {
   virtual game_ptr generate_starting_state(std::vector<agent_ptr> p) const = 0;
   virtual std::set<int> required_inputs() const = 0;
 
-  agent_ptr prepared_player(agent_f gen, float plim) const;
+  agent_ptr prepared_player(input_sampler isam, agent_f gen, float plim) const;
   std::vector<agent_ptr> prepare_n(agent_f gen, int n, float plim) const;
   game_ptr team_bots_vs(agent_ptr a) const;
   std::vector<agent_ptr> make_teams(std::vector<agent_ptr> ps) const;

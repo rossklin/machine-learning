@@ -72,9 +72,8 @@ function<vec()> game_generator::generate_input_sampler() const {
 }
 
 // Let #npar bots play 100 games, select those which pass score limit and then select the best one
-agent_ptr game_generator::prepared_player(agent_f gen, float plim) const {
+agent_ptr game_generator::prepared_player(input_sampler isam, agent_f gen, float plim) const {
   vector<agent_ptr> buf(prep_npar);
-  input_sampler isam = generate_input_sampler();
 
   auto vgen = [this, gen]() -> agent_ptr {
     agent_ptr a = gen();
@@ -89,11 +88,11 @@ agent_ptr game_generator::prepared_player(agent_f gen, float plim) const {
     float eval = 0;
     agent_ptr a = vgen();
     int restarts = 0;
-    int max_its = 30;
+    int max_its = 5;
     int ndata = 0;
 
     for (int i = 0; i < max_its; i++) {
-      bool supervizion = ((i * i) / (10 * max_its)) % 2 == 0;
+      bool supervizion = i % 2 == 0 && i < 4;
       a->set_exploration_rate(0.8 - 0.6 * i / (float)max_its);
 
       // play and train
@@ -119,7 +118,7 @@ agent_ptr game_generator::prepared_player(agent_f gen, float plim) const {
 
       bool complex = a->eval->complexity() > 5;
       bool stable = a->eval->stable;
-      bool trainable = a->tstats.rate_successfull > 0.5;
+      bool trainable = a->tstats.rate_successfull > pow(0.975, max_its);
 
       if (!(complex && stable && trainable)) {
         // this agent has degenerated
@@ -160,12 +159,13 @@ agent_ptr game_generator::prepared_player(agent_f gen, float plim) const {
 // Repeatedly attempt to make prepared players until n have been generated
 vector<agent_ptr> game_generator::prepare_n(agent_f gen, int n, float plim) const {
   vector<agent_ptr> buf(n);
+  input_sampler isam = generate_input_sampler();
 
   for (int i = 0; i < n; i++) {
     cout << "prepare_n: starting " << (i + 1) << "/" << n << endl
          << "----------------------------------------" << endl;
     agent_ptr a = 0;
-    while (!a) a = prepared_player(gen, plim);
+    while (!a) a = prepared_player(isam, gen, plim);
     buf[i] = a;
     cout << "prepare_n: completed " << (i + 1) << "/" << n << " score " << a->score << endl
          << "----------------------------------------" << endl;
