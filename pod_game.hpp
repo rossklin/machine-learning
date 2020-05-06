@@ -36,14 +36,16 @@ class pod_game : public game, public std::enable_shared_from_this<pod_game> {
 
   bool did_finish;
   int run_laps;
-  std::vector<point> checkpoint;
 
   point get_checkpoint(int idx) const;
-  hm<int, pod_agent::ptr> typed_agents;
 
  public:
+  std::vector<point> checkpoint;
+  hm<int, pod_agent::ptr> typed_agents;
+
   pod_game(player_table pl);
   void initialize() override;
+  void setup_from_input(std::istream &s) override;
   record_table increment(std::string row_prefix = "") override;
   bool finished() override;
   std::string end_stats() override;

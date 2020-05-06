@@ -1,4 +1,5 @@
 #pragma once
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -19,6 +20,7 @@ class game {
   virtual void initialize();
   virtual void reset();
 
+  virtual void setup_from_input(std::istream &s) = 0;
   virtual double winner_reward(int epoch) = 0;
   virtual record_table increment(std::string row_prefix = "") = 0;
   virtual bool finished() = 0;

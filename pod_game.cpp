@@ -48,6 +48,16 @@ void pod_game::initialize() {
   for (auto x : typed_agents) x.second->data = gen_pod();
 }
 
+void pod_game::setup_from_input(istream &s) {
+  int ncp;
+
+  s >> run_laps >> ncp;
+  assert(ncp > 1 && ncp < 9);
+  checkpoint.resize(ncp);
+
+  for (auto &p : checkpoint) s >> p.x >> p.y;
+}
+
 int pod_choice::vector_dim() { return 4; }
 bool pod_choice::validate() { return true; }
 
