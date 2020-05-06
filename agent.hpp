@@ -68,7 +68,7 @@ class agent : public std::enable_shared_from_this<agent> {
   // modifiers
   virtual void train(std::vector<record> records, input_sampler isam);
   virtual void set_exploration_rate(float r);
-  virtual void initialize_from_input(input_sampler s, int choice_dim);
+  virtual void initialize_from_input(input_sampler s, int choice_dim, std::set<int> ireq);
 
   // analysis
   virtual choice_ptr select_choice(game_ptr g);
