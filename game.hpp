@@ -12,11 +12,11 @@ class game {
   int winner;
   int turns_played;
   int max_turns;
-  player_table players;
+  hm<int, team> team_table, original_agents;
   hm<int, std::vector<record>> result_buf;
-  std::vector<agent_ptr> original_agents;
+  // std::vector<agent_ptr> original_agents;
 
-  game(player_table pl);
+  game(hm<int, team> ts);
   virtual void initialize();
   virtual void reset();
 
@@ -33,6 +33,6 @@ class game {
 
   hm<int, std::vector<record>> play(int epoch, std::string row_prefix = "");
   choice_ptr select_choice(agent_ptr a);
-  std::vector<int> team_clone_ids(int tid) const;
+  // std::vector<int> team_clone_ids(int tid) const;
   vec vectorize_input(choice_ptr c, int pid) const;
 };

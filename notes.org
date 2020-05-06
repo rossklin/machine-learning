@@ -1,4 +1,6 @@
 * todo
+** Replace team_index with an actual team of agents
+Update score: also update team score
 ** [done] Specific game data needs info about epoch, rank, opponent and checkpoints
 ** Fine tune inner optimization parameters
 ** Try simulated annealing 

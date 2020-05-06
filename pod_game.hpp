@@ -41,9 +41,9 @@ class pod_game : public game, public std::enable_shared_from_this<pod_game> {
 
  public:
   std::vector<point> checkpoint;
-  hm<int, pod_agent::ptr> typed_agents;
+  hm<int, std::vector<pod_agent::ptr>> typed_agents;
 
-  pod_game(player_table pl);
+  pod_game(hm<int, team> ts);
   void initialize() override;
   void setup_from_input(std::istream &s) override;
   record_table increment(std::string row_prefix = "") override;

@@ -221,6 +221,23 @@ T hash_sample(hm<int, T> x) {
 }
 
 template <typename T>
+std::vector<T> vector_merge(std::vector<std::vector<T>> x) {
+  if (x.empty()) return {};
+
+  std::vector<T> res;
+  for (auto y : x) res.insert(res.end(), y.begin(), y.end());
+  return res;
+}
+
+template <typename T>
+bool vector_any(std::vector<T> x) {
+  for (auto y : x) {
+    if (y) return true;
+  }
+  return false;
+}
+
+template <typename T>
 std::vector<T> vector_sample(std::vector<T> data, int n) {
   std::vector<T> res;
   while (n > 0) {

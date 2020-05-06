@@ -1,9 +1,9 @@
 library(dplyr)
 library(ggplot2)
-library(reshape2)
-library(gganimate)
-library(plotly)
-library(gridExtra)
+## library(reshape2)
+## library(gganimate)
+## library(plotly)
+## library(gridExtra)
 library(tidyr)
 
 
@@ -84,7 +84,7 @@ top.pids <- (df.pt %>%
     filter(pid %in% head(unique(pid), 5)))$pid %>% unique
 
 df.pt %>%
-    filter(did.finish > 0) %>%
+    ## filter(did.finish > 0) %>%
     select(epoch, pid, relative, speed) %>%
     filter(pid %in% top.pids) %>%
     mutate(speed = speed / 250, win = relative > 1) %>%
@@ -114,7 +114,7 @@ df.pt %>%
 
 df.pt %>%
     filter(pid %in% top.pids) %>%
-    mutate(cent = ceiling(epoch / 100)) %>%
+    mutate(cent = ceiling(epoch / 10)) %>%
     group_by(cent, pid) %>%
     summarize(r = mean(speed)) %>%
     group_by(cent) %>%
@@ -187,9 +187,9 @@ pop.plot <- df.pt %>%
         age.centuries = 1e-2 * age,
         treesize = treesize
     ) %>%
-    melt(id.vars = "epoch") %>%
+    pivot_longer(-epoch) %>%
     arrange(epoch) %>%
-    ggplot(aes(x = epoch, y = value, group = variable, color = variable)) +
+    ggplot(aes(x = epoch, y = value, group = name, color = name)) +
     geom_point() +
     geom_smooth()
 
@@ -219,7 +219,7 @@ ref.plot <- ggplot(
     geom_smooth(se=F, span=span, linetype="dashed", aes(y = 2 * win, shape=NULL)) + ## winrate
     geom_hline(yintercept = 0) +
     geom_hline(yintercept = 1) +
-    coord_cartesian(ylim=c(-1, 2))
+    coord_cartesian(ylim=c(-1, 3))
 
 ## COMBINE PLOTS
 grid.arrange(pop.plot, ref.plot, ncol=2)

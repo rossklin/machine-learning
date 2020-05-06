@@ -36,16 +36,17 @@ class agent : public std::enable_shared_from_this<agent> {
   evaluator_ptr eval;
 
   int class_id;
-  int team;
+  // int team;
   int id;
-  int original_id;
-  int team_index;
+  // int original_id;
+  // int team_index;
   int assigned_game;
-  double score;
-  int last_rank;
-  int rank;
+  // double score;
+  // int last_rank;
+  // int rank;
   double simple_score;
-  bool was_protected;
+  double team_score;
+  // bool was_protected;
   int age;
   int mut_age;
 
