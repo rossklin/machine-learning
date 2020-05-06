@@ -54,10 +54,11 @@ void write_stats(int epoch, game_generator_ptr ggn, population_manager_ptr pop) 
     // play five refgames vs retired agents
     if (!pop->retirement.size()) continue;
 
-    row_prefix = to_string(epoch) + "," + to_string(rank) + ",retiree,";
+    int ret_idx = min((int)pop->retirement.size(), 10);
+    agent_ptr b = pop->retirement[ret_idx];
+    row_prefix = to_string(epoch) + "," + to_string(rank) + ",retiree#" + to_string(b->id) + ",";
     for (int j = 0; j < 5; j++) {
       agent_ptr a = pop->pop[rank];
-      agent_ptr b = pop->retirement.back();
       game_ptr gr = ggn->generate_starting_state(ggn->make_teams({a, b}));
 
       gr->enable_output = true;
@@ -71,6 +72,14 @@ void write_stats(int epoch, game_generator_ptr ggn, population_manager_ptr pop) 
   ofstream fmeta("data/game.meta.csv", ios::app);
   fmeta << xmeta;
   fmeta.close();
+
+  vector<agent_ptr> buf = pop->topn(3);
+  for (int i = 0; i < 3; i++) {
+    agent_ptr a = buf[i];
+    ofstream f("brains/e" + to_string(epoch) + "p" + to_string(i));
+    f << serialize_agent(a);
+    f.close();
+  }
 
   cout << "Completed epoch " << epoch << ", meta: " << endl
        << xmeta << endl;
