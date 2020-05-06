@@ -76,7 +76,7 @@ void random_tournament::run(population_manager_ptr pm, game_generator_ptr gg, in
       vector<int> clone_ids = g->team_clone_ids(p->team);
 
       // update simple score
-      double a = score_update_rate / game_rounds;
+      double a = score_update_rate / game_rounds;  // 1e-3
       for (auto pid : clone_ids) p->simple_score = a * g->score_simple(pid) + (1 - a) * p->simple_score;
 
       // force game to select a winner by heuristic if the game was a tie
@@ -98,19 +98,12 @@ void random_tournament::run(population_manager_ptr pm, game_generator_ptr gg, in
       score_defeated /= ppt * (tpg - 1);
       score_winner /= ppt;
 
-      if (p->team == g->winner) {
-        if (p->score >= score_defeated) {
-          p->score += a;
-        } else {
-          p->score += a * (score_defeated + 1);
-        }
-      } else {
-        if (p->score < score_winner) {
-          p->score = (1 - a) * p->score;
-        } else {
-          p->score = (1 - a) * (0.9 * p->score + 0.1 * score_defeated);
-        }
-      }
+      bool expected = score_winner >= score_defeated;
+      bool win = p->team == g->winner;
+      int sig = win - !win;
+      double diff = sig * a;
+      if (!expected) diff *= (score_defeated - score_winner + 1);
+      p->score += diff;
     }
   }
 }
