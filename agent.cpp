@@ -59,7 +59,7 @@ agent_ptr deserialize_agent(stringstream &ss) {
   return a;
 }
 
-agent::agent() : csel(0.2) {
+agent::agent() {
   static MutexType lock;
   lock.Lock();
   id = idc++;
@@ -73,6 +73,8 @@ agent::agent() : csel(0.2) {
   was_protected = false;
   age = 0;
   mut_age = 0;
+
+  csel = choice_selector_ptr(new choice_selector(0.2));
 }
 
 void agent::train(vector<record> results, input_sampler isam) {
@@ -131,7 +133,7 @@ bool agent::evaluator_stability() const {
 }
 
 void agent::set_exploration_rate(float r) {
-  csel.set_exploration_rate(r);
+  csel->set_exploration_rate(r);
 }
 
 agent_ptr agent::mate(agent_ptr p) const {
@@ -170,13 +172,13 @@ void agent::initialize_from_input(input_sampler s, int choice_dim) {
 std::string agent::serialize() const {
   stringstream ss;
 
-  ss << id << sep << score << sep << rank << sep << simple_score << sep << was_protected << sep << age << sep << mut_age << sep << ancestors << sep << parents << sep << csel.serialize() << sep << eval->tag << sep << eval->serialize();
+  ss << id << sep << score << sep << rank << sep << simple_score << sep << was_protected << sep << age << sep << mut_age << sep << ancestors << sep << parents << sep << csel->serialize() << sep << eval->tag << sep << eval->serialize();
   return ss.str();
 }
 
 void agent::deserialize(std::stringstream &ss) {
   ss >> id >> score >> rank >> simple_score >> was_protected >> age >> mut_age >> ancestors >> parents;
-  csel.deserialize(ss);
+  csel->deserialize(ss);
 
   string tag;
   ss >> tag;
@@ -202,7 +204,7 @@ choice_ptr agent::select_choice(game_ptr g) {
     opt->value_buf = evaluate_choice(x);
   }
 
-  return csel.select(opts);
+  return csel->select(opts);
 }
 
 float agent::complexity_penalty() const {

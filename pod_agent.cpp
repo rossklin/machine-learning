@@ -14,7 +14,7 @@ pod_agent::pod_agent() : agent() {
 agent_ptr pod_agent::clone() const {
   shared_ptr<pod_agent> a(new pod_agent);
   a->eval = eval->clone();
-  a->csel = csel;
+  a->csel = choice_selector_ptr(new choice_selector(*csel));
   a->data = data;
   a->label = label;
   a->class_id = class_id;

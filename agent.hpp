@@ -32,7 +32,7 @@ class agent : public std::enable_shared_from_this<agent> {
  public:
   static int idc;
 
-  choice_selector csel;
+  choice_selector_ptr csel;
   evaluator_ptr eval;
 
   int class_id;
