@@ -8,6 +8,7 @@
 
 #include "agent.hpp"
 #include "evaluator.hpp"
+#include "game.hpp"
 #include "game_generator.hpp"
 #include "utility.hpp"
 
@@ -146,7 +147,7 @@ void population_manager::evolve(game_generator_ptr gg) {
   simple_score_limit = 0.1 * pop[lim_idx]->simple_score + 0.9 * simple_score_limit;
 
   auto cond_drop = [](agent_ptr a) {
-    return a->tstats.rate_successfull < 0.5;
+    return a->tstats.rate_successfull < 0.1;
   };
 
   vector<agent_ptr> player_buf;
@@ -158,7 +159,7 @@ void population_manager::evolve(game_generator_ptr gg) {
       retirement.insert(retirement.begin(), a);
     }
   }
-  while (retirement.size() > 100) retirement.pop_back();
+  if (retirement.size() > 100) retirement.resize(100);
   int n_drop = nkeep - player_buf.size();
   int result_keep = player_buf.size();
 
@@ -177,7 +178,7 @@ void population_manager::evolve(game_generator_ptr gg) {
 
     // update protection after adding agent so scores are calculated
     // before the agent is evaluated
-    if (a->rank < a->last_rank - 2) {
+    if (a->rank < a->last_rank - 1) {
       a->was_protected = true;
       player_buf.push_back(a);
       n_protprog++;
@@ -186,14 +187,37 @@ void population_manager::evolve(game_generator_ptr gg) {
 
   int free_spots = popsize - player_buf.size();
 
-  cout << "PM: keeping " << result_keep << ", dropping " << n_drop << " , protected " << n_protprog << " progressors" << endl;
+  // trial between population and retirement
+  int n_trial = 10;
+  int n_win = 0;
+  if (retirement.size()) {
+    for (int i = 0; i < n_trial; i++) {
+      agent_ptr a = player_buf.front();
+      agent_ptr b = retirement.back();
+      a->set_exploration_rate(0.05);
+      b->set_exploration_rate(0.05);
+      game_ptr g = gg->generate_starting_state(gg->make_teams({a, b}));
+      g->play(1);
+      n_win += g->winner == a->team;
+    }
+  }
+  float qtrial = (n_win + 2 - (retirement.size() > 1)) / (float)n_trial;
 
-  auto mate_generator = [this, nkeep]() -> agent_ptr {
-    int idx1 = rand_int(0, nkeep - 1);
-    agent_ptr parent1 = pop[idx1];
+  cout << "PM: keeping " << result_keep << ", retiring " << n_drop << " , protected " << n_protprog << " progressors" << endl;
 
+  auto mate_generator = [this, nkeep, qtrial]() -> agent_ptr {
+    agent_ptr parent1;
     vector<agent_ptr> buf = pop;
-    buf.erase(buf.begin() + idx1);
+
+    if (retirement.size() && u01() > qtrial) {
+      // use a retired agent as parent
+      parent1 = sample_one(retirement);
+    } else {
+      // use a top agent from population as parent
+      int idx1 = rand_int(0, nkeep - 1);
+      parent1 = pop[idx1];
+      buf.erase(buf.begin() + idx1);
+    }
 
     sort(buf.begin(), buf.end(), [parent1](agent_ptr a, agent_ptr b) {
       return mate_score(parent1, a) > mate_score(parent1, b);
