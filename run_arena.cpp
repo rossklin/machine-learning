@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
   int tree_depth = 5;
   bool debug = false;
   int prep_npar = 32;
-  float preplim = 0.5;
+  float preplim = 0.2;
   int max_turns = 300;
   string loadfile;
 
