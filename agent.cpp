@@ -125,6 +125,10 @@ void agent::train(vector<record> results, input_sampler isam) {
   if (tstats.output_change > 1e-2 / sqrt(age)) {
     tstats.output_change *= 0.75;
     eval->learning_rate *= 0.75;
+  } else if (tstats.output_change < 1e-4 / sqrt(age)) {
+    tstats.output_change *= 1.25;
+    eval->learning_rate *= 1.25;
+    if (eval->learning_rate > 1) eval->learning_rate = 1;
   }
 }
 
