@@ -1,4 +1,7 @@
 * todo
+** Why does mutant generator get same complexity in every case?
+** Why are most children generated with ~2x as high complexity as parents, is mate score reversed or something?
+** Create a run-id instead of manually managing data
 ** [done] Specific game data needs info about epoch, rank, opponent and checkpoints
 ** Fine tune inner optimization parameters
 ** Try simulated annealing 

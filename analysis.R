@@ -1,11 +1,7 @@
 library(dplyr)
 library(ggplot2)
-library(reshape2)
-library(gganimate)
-library(plotly)
-library(gridExtra)
 library(tidyr)
-
+library(gridExtra)
 
 ## sample 1, 2, 9:
 ## step = 1e-9
@@ -43,12 +39,13 @@ summary(abs(gradient))
 
 ## analysis
 
-tree.evaluator.cols <- c("treesize", "lrate")
+team.evaluator.cols <- c("treesize", "lrate", "gamma0", "gamma1")
 
 agent.cols <- c(
     "pid",
     "label",
     "age",
+    "future.discount",
     "score",
     "nancestors",
     "nparents",
@@ -62,7 +59,7 @@ agent.cols <- c(
     ## "training.rate.correct.sign",
     "training.rate.optim.failed",
 
-    tree.evaluator.cols
+    team.evaluator.cols
 )
 
 pod.game.cols <- c("did.finish", "relative", "speed")
@@ -72,11 +69,13 @@ pod.game.cols <- c("did.finish", "relative", "speed")
 ## cases
 ## extreme gradient: 1
 
-df.pt <- setNames(read.csv("pure_train.meta.csv", header=F, stringsAsFactors=F), c("epoch", agent.cols, pod.game.cols))
+run.id <- "2289842298"
+
+df.pt <- setNames(read.csv(paste0("data/pure-train-run-", run.id, ".csv"), header=F, stringsAsFactors=F), c("epoch", agent.cols, pod.game.cols))
 
 top.pids <- (df.pt %>%
     select(epoch, pid, relative, speed) %>%
-    filter(epoch > 5) %>%
+    filter(epoch > 3) %>%
     group_by(pid) %>%
     mutate(rs = weighted.mean(relative, epoch)) %>%
     group_by %>%
@@ -84,14 +83,14 @@ top.pids <- (df.pt %>%
     filter(pid %in% head(unique(pid), 5)))$pid %>% unique
 
 df.pt %>%
-    filter(did.finish > 0) %>%
-    select(epoch, pid, relative, speed) %>%
+    ## filter(did.finish > 0) %>%
+    select(epoch, pid, relative, speed, did.finish) %>%
     filter(pid %in% top.pids) %>%
     mutate(speed = speed / 250, win = relative > 1) %>%
-    pivot_longer(-c(epoch, pid)) %>%
+    pivot_longer(-c(epoch, pid, did.finish)) %>%
     ggplot(aes(x = epoch, y = value)) +
-    geom_point() + 
     geom_smooth() +
+    geom_point(aes(color=as.factor(did.finish))) + 
     geom_hline(yintercept = 0:1) +
     coord_cartesian(ylim = c(-0.5, 1.5)) +
     facet_grid(pid~name)
@@ -127,9 +126,11 @@ df.pt %>%
 ## POPULATION ANALYSIS
 ## ****************************************
 
-df.pt <- setNames(read.csv("data/population.csv", header=F, stringsAsFactors=F), c("epoch", "rank", agent.cols))
+run.id <- "4239058643"
 
-df.pt %>%
+df.pt <- setNames(read.csv(paste0("data/run-", run.id, "-population.csv"), header=F, stringsAsFactors=F), c("epoch", "rank", agent.cols))
+
+plot.rate <- df.pt %>%
     select(epoch, pid, starts_with("training.rate")) %>%
     ## filter(pid %in% top.pids) %>%
     pivot_longer(-c(epoch, pid)) %>%
@@ -137,7 +138,7 @@ df.pt %>%
     geom_smooth(size=2, alpha=0.3) +
     facet_grid(.~name, scales="free")
 
-df.pt %>%
+plot.rel <- df.pt %>%
     select(epoch, pid, starts_with("training.rel")) %>%
     ## filter(pid %in% top.pids) %>%
     pivot_longer(-c(epoch, pid)) %>%
@@ -145,69 +146,29 @@ df.pt %>%
     geom_smooth() +
     facet_grid(.~name)
 
-## df.pt %>%
-##     ## filter(pid %in% top.pids) %>%
-##     mutate(cent = ceiling(epoch / 100)) %>%
-##     group_by(cent, pid) %>%
-##     summarize(r = mean(speed)) %>%
-##     group_by(cent) %>%
-##     filter(r == max(r)) %>%
-##     arrange(cent) %>%
-##     data.frame
-
-## df.pt %>%
-##     select(epoch, pid, relative, speed) %>%
-##     ## filter(pid %in% top.pids) %>%
-##     mutate(speed = speed / 250) %>%
-##     pivot_longer(-c(epoch, pid)) %>%
-##     ggplot(aes(x = epoch, y = value)) +
-##     geom_smooth() +
-##     facet_grid(pid~name)
-
-## df.population %>%
-##     select(age, starts_with("training.rel.change")) %>%
-##     pivot_longer(-age) %>%
-##     ggplot(aes(x = age, y = value, group = name, color = name)) +
-##     geom_point() +
-##     facet_grid(name~., scales="free")
-
-## df.population %>%
-##     select(age, starts_with("training.rate")) %>%
-##     pivot_longer(-age) %>%
-##     ggplot(aes(x = age, y = value, group = name, color = name)) +
-##     geom_point() +
-##     facet_grid(name~., scales="free")
-
 rank.limit <- 8
 pop.plot <- df.pt %>%
     filter(rank < rank.limit) %>%
     transmute(
         epoch = epoch,
         ancestors = nancestors,
-        age.centuries = 1e-2 * age,
-        treesize = treesize
+        age.per10 = age / 10,
+        treesize.per10 = treesize / 10
     ) %>%
-    melt(id.vars = "epoch") %>%
+    pivot_longer(-epoch) %>%
     arrange(epoch) %>%
-    ggplot(aes(x = epoch, y = value, group = variable, color = variable)) +
+    ggplot(aes(x = epoch, y = value, group = name, color = name)) +
     geom_point() +
     geom_smooth()
-
-## ggplot(df.population %>% filter(epoch == max(epoch)), aes(x = rank, y = treesize)) + geom_bin2d()
-
-## ggplot(df.population %>% filter(epoch == max(epoch)), aes(x = rank, y = nancestors)) + geom_bin2d()
 
 ## ****************************************
 ## REFERENCE GAME STATISTICS
 ## ****************************************
-
 df.meta <- setNames(
-    read.csv("data/game.meta.csv", header=F),
+    read.csv(paste0("data/run-", run.id, "-refgames.csv"), header=F),
     c("epoch", "opponent", "rank", agent.cols, pod.game.cols)
 ) %>%
     mutate(win = as.numeric(relative >= 1))
-
-## df.meta %>% filter(epoch == max(epoch))
 
 span <- NULL
 ref.plot <- ggplot(
@@ -222,7 +183,7 @@ ref.plot <- ggplot(
     coord_cartesian(ylim=c(-1, 2))
 
 ## COMBINE PLOTS
-grid.arrange(pop.plot, ref.plot, ncol=2)
+grid.arrange(pop.plot, ref.plot, plot.rate, plot.rel, ncol=2)
 
 summary(lm(win~epoch, data = df.meta %>% filter(rank == 1, opponent == "refbot")))
 
@@ -244,7 +205,7 @@ df.meta %>%
 df <- setNames(
     read.csv("data/game.csv", header=F),
     c(
-        "epoch", "rank", "opponent",
+        "run.id", "epoch", "rank", "opponent",
         "game.id", "turn", "team", "lap", "player.id", "x", "y",
         "angle", "shield", "boost.count", "reward",
         "cp.xs", "cp.ys"
