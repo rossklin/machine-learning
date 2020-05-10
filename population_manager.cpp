@@ -99,14 +99,16 @@ void population_manager::prepare_epoch(int epoch, game_generator_ptr gg) {
   sortpop();
 }
 
+// todo: always 0 for first generation
 double mate_score(agent_ptr parent1, agent_ptr x) {
   // direct descendant
-  if (parent1->parents.count(x->id) || x->parents.count(parent1->id)) return 0;
+  if (parent1->parents.count(x->id) || x->parents.count(parent1->id)) return -10;
 
-  double different_ancestors = set_symdiff(x->ancestors, parent1->ancestors).size();
+  double cpenalty = 3 * sigmoid(x->eval->complexity(), 500);
+  double different_ancestors = fmin(5, set_symdiff(x->ancestors, parent1->ancestors).size());
   double common_parents = set_intersect(x->parents, parent1->parents).size();
 
-  return x->score + different_ancestors - common_parents;
+  return x->score + different_ancestors - common_parents - cpenalty;
 };
 
 void population_manager::sortpop() {
