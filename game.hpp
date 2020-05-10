@@ -1,4 +1,5 @@
 #pragma once
+#include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -8,7 +9,7 @@
 class game {
  public:
   int game_id;
-  bool enable_output;
+  std::fstream *enable_output;
   int winner;
   int turns_played;
   int max_turns;

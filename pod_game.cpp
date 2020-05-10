@@ -188,11 +188,10 @@ record_table pod_game::increment(string row_prefix) {
     string cp_ys = join_string(map<point, string>([](point a) -> string { return to_string(int(a.y)); }, checkpoint), " ");
 
     // write csv output
-    fstream f("data/game.csv", ios::app);
     for (auto x : typed_agents) {
       int pid = x.first;
       pod_agent::ptr p = x.second;
-      f << row_prefix
+      (*enable_output) << row_prefix
         << game_id << comma
         << turns_played << comma
         << p->team << comma
@@ -207,7 +206,6 @@ record_table pod_game::increment(string row_prefix) {
         << cp_xs << comma
         << cp_ys << endl;
     }
-    f.close();
   }
 
   return res;

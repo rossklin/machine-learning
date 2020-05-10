@@ -21,7 +21,7 @@ game::game(player_table pl) : players(pl) {
   m.Unlock();
 
   max_turns = 100;
-  enable_output = false;
+  enable_output = 0;
 }
 
 void game::initialize() {
