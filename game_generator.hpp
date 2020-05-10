@@ -11,6 +11,7 @@ class game_generator {
   int ppt;
   int prep_npar;
   int max_turns;
+  int max_complexity;
 
   game_generator(int teams, int ppt, agent_f refbot_generator);
 

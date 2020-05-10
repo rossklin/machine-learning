@@ -3,7 +3,9 @@
 
 #include <algorithm>
 #include <cassert>
+#include <future>
 #include <set>
+#include <thread>
 
 #include "agent.hpp"
 #include "game.hpp"
@@ -13,8 +15,9 @@
 using namespace std;
 
 game_generator::game_generator(int teams, int ppt, agent_f refbot_generator) : nr_of_teams(teams), ppt(ppt), refbot_generator(refbot_generator) {
-  prep_npar = 32;
+  prep_npar = 6;
   max_turns = 100;
+  max_complexity = 800;
 }
 
 vector<agent_ptr> game_generator::make_teams(vector<agent_ptr> ps) const {
@@ -73,26 +76,31 @@ function<vec()> game_generator::generate_input_sampler() const {
 
 // Let #npar bots play 100 games, select those which pass score limit and then select the best one
 agent_ptr game_generator::prepared_player(input_sampler isam, agent_f gen, float plim) const {
-  vector<agent_ptr> buf(prep_npar);
+  int nt = min(prep_npar, max((int)thread::hardware_concurrency() - 1, 1));
 
-  auto vgen = [this, gen]() -> agent_ptr {
-    agent_ptr a = gen();
-    while (set_difference(required_inputs(), a->eval->list_inputs()).size() > 0) {
-      a = gen();
-    }
-    return a;
-  };
+  auto task = [this, gen, plim, isam]() -> agent_ptr {
+    auto vgen = [this, gen]() -> agent_ptr {
+      agent_ptr a = gen();
 
-#pragma omp parallel for
-  for (int t = 0; t < prep_npar; t++) {
+      set<int> missing = set_difference(required_inputs(), a->eval->list_inputs());
+      a->eval->add_inputs(missing);
+
+      double wlim = 0;
+      while (a->eval->complexity() > max_complexity) a->eval->prune(wlim += 1e-3);
+
+      return a;
+    };
+
+    // #pragma omp parallel for
+    //   for (int t = 0; t < prep_npar; t++) {
     float eval = 0;
     agent_ptr a = vgen();
     int restarts = 0;
-    int max_its = 5;
+    int max_its = 10;
     int ndata = 0;
 
     for (int i = 0; i < max_its; i++) {
-      bool supervizion = i % 2 == 0 && i < 4;
+      bool supervizion = i % 2 == 0 && i < 6;
       a->set_exploration_rate(0.8 - 0.6 * i / (float)max_its);
 
       // play and train
@@ -140,12 +148,39 @@ agent_ptr game_generator::prepared_player(input_sampler isam, agent_f gen, float
 
     if (eval > plim) {
       a->score = eval;
-      buf[t] = a;
       cout << "prepared_player (" << restarts << " restarts): ACCEPTING " << a->id << " with complexity " << a->eval->complexity() << " at eval = " << eval << endl;
+      return a;
     } else {
       cout << "prepared_player (" << restarts << " restarts): rejecting " << a->id << " with complexity " << a->eval->complexity() << " at eval = " << eval << endl;
+      return NULL;
     }
-  }
+  };
+
+  vector<shared_future<agent_ptr>> futs, futs_buf;
+  vector<agent_ptr> buf;
+  bool done = false;
+
+  do {
+    futs_buf.clear();
+    for (auto f : futs) {
+      if (f.wait_for(chrono::milliseconds(0)) == future_status::ready) {
+        agent_ptr test = f.get();
+        if (test) {
+          done = true;
+          buf.push_back(test);
+        }
+      } else {
+        futs_buf.push_back(f);
+      }
+    }
+    futs = futs_buf;
+
+    this_thread::sleep_for(chrono::milliseconds(10));
+
+    if (!done) {
+      while (futs.size() < nt) futs.push_back(async(launch::async, task));
+    }
+  } while (futs.size());
 
   sort(buf.begin(), buf.end(), [](agent_ptr a, agent_ptr b) -> bool {
     double sa = a ? a->score : 0;
@@ -164,10 +199,8 @@ vector<agent_ptr> game_generator::prepare_n(agent_f gen, int n, float plim) cons
   for (int i = 0; i < n; i++) {
     cout << "prepare_n: starting " << (i + 1) << "/" << n << endl
          << "----------------------------------------" << endl;
-    agent_ptr a = 0;
-    while (!a) a = prepared_player(isam, gen, plim);
-    buf[i] = a;
-    cout << "prepare_n: completed " << (i + 1) << "/" << n << " score " << a->score << endl
+    buf[i] = prepared_player(isam, gen, plim);
+    cout << "prepare_n: completed " << (i + 1) << "/" << n << " score " << buf[i]->score << endl
          << "----------------------------------------" << endl;
   }
 
