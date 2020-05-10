@@ -26,35 +26,41 @@ int main(int argc, char **argv) {
   int ngames = 16;
   int ppt = 2;
   int tpg = 2;
-  int tree_depth = 5;
   bool debug = false;
-  int prep_npar = 32;
-  float preplim = 0.2;
+  int prep_npar = 6;
+  float preplim = 0.1;
   int max_turns = 300;
+  int game_rounds = 100;
+  int max_comp = 800;
   string loadfile;
 
   for (int i = 1; i < argc; i++) {
     if (!strcmp(argv[i], "debug")) {
       debug = true;
       threads = 1;
-      tree_depth = 3;
       ngames = 4;
       preplim = -1;
       prep_npar = threads;
       max_turns = 20;
+      game_rounds = 2;
     } else if (!strcmp(argv[i], "quick")) {
-      tree_depth = 4;
       ngames = 4;
       ppt = 1;
       preplim = 0.01;
       prep_npar = threads;
       max_turns = 100;
+      game_rounds = 4;
+      max_comp = 400;
     } else if (!strcmp(argv[i], "threads")) {
       threads = atoi(argv[++i]);
     } else if (!strcmp(argv[i], "ngames")) {
       ngames = atoi(argv[++i]);
     } else if (!strcmp(argv[i], "load")) {
       loadfile = argv[++i];
+    } else if (!strcmp(argv[i], "preplim")) {
+      preplim = atof(argv[++i]);
+    } else if (!strcmp(argv[i], "ppt")) {
+      ppt = atoi(argv[++i]);
     }
   }
 
@@ -63,6 +69,7 @@ int main(int argc, char **argv) {
   game_generator_ptr ggen(new pod_game_generator(tpg, ppt, refbot_gen));
   ggen->prep_npar = prep_npar;
   ggen->max_turns = max_turns;
+  ggen->max_complexity = max_comp;
   set<int> ireq = ggen->required_inputs();
 
   input_sampler is = ggen->generate_input_sampler();
@@ -78,7 +85,7 @@ int main(int argc, char **argv) {
     return a;
   };
 
-  tournament_ptr t(new random_tournament);
+  tournament_ptr t(new random_tournament(game_rounds));
 
   int popsize = ngames * tpg;
   population_manager_ptr p(new default_population_manager(popsize, agent_gen, preplim));
