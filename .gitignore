@@ -4,6 +4,7 @@ brains/*
 saved_stats/*
 archive/*
 build/*
+debug_build/*
 .Rhistory
 perf.*
 save/*
