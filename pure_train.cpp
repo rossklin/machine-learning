@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <cmath>
+#include <cstring>
 #include <fstream>
 
 #include "game_generator.hpp"
@@ -31,32 +32,31 @@ agent_ptr refbot_gen() {
   return a;
 }
 
-void pure_train() {
-  cout << "Pure train: start" << endl;
+void pure_train(int n) {
+  unsigned int run_id = rand_int(0, INT32_MAX);
+  cout << "Pure train: start run " << run_id << endl;
   omp_set_num_threads(6);
 
-  pod_game_generator ggen(2, 1, refbot_gen);
-  vector<agent_ptr> pop(1000);
+  int ppt = 2;
+  pod_game_generator ggen(2, ppt, refbot_gen);
+  vector<agent_ptr> pop(n);
   input_sampler isam = ggen.generate_input_sampler();
   int cdim = ggen.choice_dim();
   set<int> ireq = ggen.required_inputs();
 
-  cout << "cdim: " << cdim << endl;
-
-  auto vgen = [ggen, cdim, isam, ireq]() -> agent_ptr {
-    agent_ptr a = agent_gen(cdim);
+  auto vgen = [ggen, ppt, cdim, isam, ireq]() -> agent_ptr {
+    agent_ptr a = agent_gen(ppt);
     a->initialize_from_input(isam, cdim, ireq);
-    while (set_difference(ireq, a->eval->list_inputs()).size() > 0) {
-      a = agent_gen(cdim);
-      a->initialize_from_input(isam, cdim, ireq);
-    }
+    a->eval->add_inputs(set_difference(ireq, a->eval->list_inputs()));
     return a;
   };
 
-  for (auto &a : pop) a = vgen();
+  for (auto& a : pop) a = vgen();
 
   omp_lock_t writelock;
   omp_init_lock(&writelock);
+
+  string fname = "data/pure-train-run-" + to_string(run_id) + ".csv";
 
   for (int epoch = 1; true; epoch++) {
     cout << "Pure train: epoch " << epoch << endl;
@@ -70,14 +70,12 @@ void pure_train() {
       a->set_exploration_rate(0.7 - 0.6 * atan(epoch / (float)40) / (M_PI / 2));
 
       game_ptr g = ggen.team_bots_vs(a);
-      assert(g->players.size() == 2);
 
       auto res = g->play(epoch);
       for (auto x : res) a->train(x.second, isam);
 
       omp_set_lock(&writelock);
-      ofstream fmeta("pure_train.meta.csv", ios::app);
-      string comma = ",";
+      ofstream fmeta(fname, ios::app);
       fmeta << epoch << comma << a->status_report() << comma << g->end_stats() << endl;
       fmeta.close();
       omp_unset_lock(&writelock);
@@ -89,7 +87,14 @@ void pure_train() {
   omp_destroy_lock(&writelock);
 }
 
-int main() {
-  pure_train();
+int main(int argc, char** argv) {
+  int n = 100;
+  for (int i = 1; i < argc; i++) {
+    if (!strcmp(argv[i], "n")) {
+      n = atoi(argv[++i]);
+    }
+  }
+
+  pure_train(n);
   return 0;
 }
