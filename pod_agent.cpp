@@ -18,12 +18,8 @@ agent_ptr pod_agent::clone() const {
   a->data = data;
   a->label = label;
   a->class_id = class_id;
-
-  if (original_id > -1) {
-    a->original_id = original_id;
-  } else {
-    a->original_id = id;
-  }
+  a->original_id = original_id;
+  a->future_discount = future_discount;
 
   return a;
 }
