@@ -48,6 +48,7 @@ class agent : public std::enable_shared_from_this<agent> {
   bool was_protected;
   int age;
   int mut_age;
+  double future_discount;
 
   training_stats tstats;
 
@@ -73,7 +74,6 @@ class agent : public std::enable_shared_from_this<agent> {
   // analysis
   virtual choice_ptr select_choice(game_ptr g);
   virtual double evaluate_choice(vec x) const;
-  virtual float complexity_penalty() const;
   virtual bool evaluator_stability() const;
   virtual std::string status_report() const;
   virtual std::string serialize() const;

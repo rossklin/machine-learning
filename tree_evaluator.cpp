@@ -289,15 +289,15 @@ bool tree_evaluator::tree::loop_free(int lev) {
   return true;
 }
 
-void tree_evaluator::tree::prune() {
-  if (w == 0 || !isfinite(w)) {
+void tree_evaluator::tree::prune(double l) {
+  if (fabs(w) <= l || !isfinite(w)) {
     subtree.clear();
     class_id = CONSTANT_TREE;
     const_value = 0;
     w = 1;
   }
 
-  for (auto t : subtree) t->prune();
+  for (auto t : subtree) t->prune(l);
 }
 
 tree_evaluator::tree::ptr tree_evaluator::tree::clone() {
@@ -475,6 +475,35 @@ set<int> tree_evaluator::tree::list_inputs() const {
   }
 }
 
+void tree_evaluator::tree::add_inputs(vector<int> inputs) {
+  if (inputs.empty()) return;
+
+  bool do_init = false;
+  if (inputs.size() > 1) {
+    if (subtree.empty()) {
+      class_id = WEIGHT_TREE;
+      subtree.resize(ranked_sample(seq(2, max_weighted_subtrees), 0.5));
+      for (auto &t : subtree) t = ptr(new tree);
+      do_init = true;  // subtrees need to be initialized
+    }
+  } else if (subtree.empty()) {
+    class_id = INPUT_TREE;
+    input_index = inputs.front();
+  }
+
+  if (subtree.size()) {
+    vector<vector<int>> parts = random_partition<int>(inputs, subtree.size());
+    for (int i = 0; i < subtree.size(); i++) {
+      tree::ptr t = subtree[i];
+      if (do_init) {
+        t->initialize(parts[i]);
+      } else {
+        t->add_inputs(parts[i]);
+      }
+    }
+  }
+}
+
 int tree_evaluator::tree::set_weights(const vec &x, int offset) {
   assert(offset < x.size());
 
@@ -502,8 +531,8 @@ double tree_evaluator::evaluate(vec x) {
   return root->evaluate(x);
 }
 
-void tree_evaluator::prune() {
-  root->prune();
+void tree_evaluator::prune(double l) {
+  root->prune(l);
 }
 
 bool tree_evaluator::update(vector<record> results, int age, double &rel_change) {
@@ -659,102 +688,7 @@ void tree_evaluator::deserialize(stringstream &ss) {
   return;
 }
 
-void tree_evaluator::example_setup(int cdim) {
-  stable = true;
-  dim = cdim;
-  learning_rate = fabs(rnorm(0, 0.01));
-  weight_limit = u01(1, 10000);
-
-  root = tree::ptr(new tree);
-
-  // debug: fixed tree definition
-  root->w = 1;
-  root->class_id = BINARY_TREE;
-  root->subtree.resize(2);
-  root->fname = "product";
-
-  tree::ptr K(new tree);
-  K->w = 1;
-  K->class_id = BINARY_TREE;
-  K->fname = "kernel";
-  K->subtree.resize(2);
-
-  tree::ptr W(new tree);
-  W->w = 1;
-  W->class_id = WEIGHT_TREE;
-  W->subtree.resize(2);
-
-  tree::ptr SK1(new tree);
-  tree::ptr SK2(new tree);
-
-  SK2->class_id = UNARY_TREE;
-
-  SK1->class_id = UNARY_TREE;
-  SK1->w = 1;
-  SK1->fname = "sigmoid";
-  SK1->subtree.resize(1);
-
-  SK2->class_id = UNARY_TREE;
-  SK2->w = -1;
-  SK2->fname = "sigmoid";
-  SK2->subtree.resize(1);
-
-  W->subtree[0] = SK1;
-  W->subtree[1] = SK2;
-
-  tree::ptr I1(new tree);
-  I1->class_id = INPUT_TREE;
-  I1->w = 1;
-  I1->input_index = 0;
-
-  SK1->subtree[0] = I1;
-
-  tree::ptr I2(new tree);
-  I2->class_id = INPUT_TREE;
-  I2->w = 1;
-  I2->input_index = 4;
-
-  SK2->subtree[0] = I2;
-
-  tree::ptr C1(new tree);
-  C1->w = 1;
-  C1->class_id = CONSTANT_TREE;
-  C1->const_value = 0.2;
-
-  K->subtree[0] = W;
-  K->subtree[1] = C1;
-
-  tree::ptr S(new tree);
-  S->w = 1;
-  S->class_id = UNARY_TREE;
-  S->fname = "sigmoid";
-  S->subtree.resize(1);
-
-  tree::ptr W2(new tree);
-  W2->w = 0.02;
-  W2->class_id = WEIGHT_TREE;
-  W2->subtree.resize(2);
-
-  tree::ptr I3(new tree);
-  I3->w = 1;
-  I3->class_id = INPUT_TREE;
-  I3->input_index = 1;
-
-  tree::ptr C2(new tree);
-  C2->w = -1;
-  C2->class_id = CONSTANT_TREE;
-  C2->const_value = 50;
-
-  W2->subtree[0] = I3;
-  W2->subtree[1] = C2;
-
-  S->subtree[0] = W2;
-
-  root->subtree[0] = K;
-  root->subtree[1] = S;
-
-  cout << "tree_evaluator::example_setup: complete with size " << root->count_trees() << endl;
-}
+void tree_evaluator::set_learning_rate(double r) { learning_rate = r; }
 
 void tree_evaluator::initialize(input_sampler sampler, int cdim, set<int> ireq) {
   stable = true;

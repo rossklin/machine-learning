@@ -9,17 +9,17 @@
 #include "pod_game_generator.hpp"
 #include "population_manager.hpp"
 #include "simple_pod_evaluator.hpp"
+#include "team_evaluator.hpp"
 #include "tree_evaluator.hpp"
 #include "utility.hpp"
 
 using namespace std;
 
-agent_ptr agent_gen(int cdim) {
+agent_ptr agent_gen(int ppt) {
   agent_ptr a(new pod_agent);
-  int depth = 4;
-  shared_ptr<tree_evaluator> e(new tree_evaluator(depth));
-  // e->example_setup(cdim);
-  a->eval = e;
+  vector<evaluator_ptr> evals;
+  for (int i = 0; i < ppt; i++) evals.push_back(tree_evaluator::ptr(new tree_evaluator));
+  a->eval = team_evaluator::ptr(new team_evaluator(evals, 4));
   a->label = "tree-pod-agent";
   return a;
 }

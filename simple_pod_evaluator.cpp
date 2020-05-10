@@ -6,6 +6,8 @@
 using namespace std;
 using namespace pod_game_parameters;
 
+void simple_pod_evaluator::set_learning_rate(double r) {}
+
 // return basic on-track feature
 double simple_pod_evaluator::evaluate(vec x) {
   double thrust = x[1];
@@ -31,7 +33,7 @@ bool simple_pod_evaluator::update(vector<record> results, int age, double &rel_c
   return true;
 }
 
-void simple_pod_evaluator::prune() {}
+void simple_pod_evaluator::prune(double l) {}
 
 evaluator_ptr simple_pod_evaluator::mate(evaluator_ptr partner) const { return evaluator_ptr(new simple_pod_evaluator); }
 evaluator_ptr simple_pod_evaluator::mutate() const { return evaluator_ptr(new simple_pod_evaluator); }
@@ -40,9 +42,11 @@ std::string simple_pod_evaluator::serialize() const { return "simple_pod_evaluat
 void simple_pod_evaluator::deserialize(std::stringstream &data) {}
 void simple_pod_evaluator::initialize(input_sampler sampler, int cdim, set<int> ireq) {}
 std::string simple_pod_evaluator::status_report() const { return "dummy status"; }
-double simple_pod_evaluator::complexity_penalty() const { return 0; }
 double simple_pod_evaluator::complexity() const { return 0; }
 
 set<int> simple_pod_evaluator::list_inputs() const {
-  return {0, 1, 2, 4, 9};
+  vector<int> buf = seq(0, 100);
+  return set<int>(buf.begin(), buf.end());
 }
+
+void simple_pod_evaluator::add_inputs(set<int> inputs) {}

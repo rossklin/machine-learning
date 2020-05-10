@@ -244,3 +244,26 @@ T ranked_sample(std::vector<T> x, double q) {
     for (auto y : x)
       if (u01() < q) return y;
 }
+
+template <typename T>
+std::vector<std::vector<T>> random_partition(std::vector<T> x, int n) {
+  std::vector<std::vector<T>> res;
+  res.reserve(n);
+
+  for (int i = 0; i < n; i++) {
+    float m = x.size() / float(n - i);
+    int ntake = round(rnorm(m, m / 2));
+    if (ntake < 0) ntake = 0;
+    if (ntake > x.size() || i == n - 1) ntake = x.size();
+
+    std::vector<T> ibuf;
+    if (ntake > 0) {
+      ibuf.insert(ibuf.begin(), x.begin(), x.begin() + ntake);
+      x.erase(x.begin(), x.begin() + ntake);
+    }
+
+    res.push_back(ibuf);
+  }
+
+  return res;
+}

@@ -9,6 +9,7 @@
 #include "population_manager.hpp"
 #include "random_tournament.hpp"
 #include "simple_pod_evaluator.hpp"
+#include "team_evaluator.hpp"
 #include "tree_evaluator.hpp"
 
 using namespace std;
@@ -67,9 +68,11 @@ int main(int argc, char **argv) {
   input_sampler is = ggen->generate_input_sampler();
   int cdim = ggen->choice_dim();
 
-  agent_f agent_gen = [is, cdim, tree_depth, ireq]() {
+  agent_f agent_gen = [is, ppt, cdim, ireq]() {
     agent_ptr a(new pod_agent);
-    a->eval = evaluator_ptr(new tree_evaluator(tree_depth));
+    vector<evaluator_ptr> evals;
+    for (int i = 0; i < ppt; i++) evals.push_back(tree_evaluator::ptr(new tree_evaluator));
+    a->eval = team_evaluator::ptr(new team_evaluator(evals, 4));
     a->label = "tree-pod";
     a->initialize_from_input(is, cdim, ireq);
     return a;

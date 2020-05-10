@@ -11,7 +11,6 @@
 #include "evaluator.hpp"
 #include "game.hpp"
 #include "pod_agent.hpp"
-#include "tree_evaluator.hpp"
 #include "utility.hpp"
 
 using namespace std;
@@ -65,7 +64,7 @@ agent::agent() {
   id = idc++;
   lock.Unlock();
 
-  original_id = -1;
+  original_id = id;
   score = 0;
   rank = 0;
   last_rank = 0;
@@ -73,14 +72,15 @@ agent::agent() {
   was_protected = false;
   age = 0;
   mut_age = 0;
+  future_discount = rnorm(0.1, 0.03);
 
   csel = choice_selector_ptr(new choice_selector(0.2));
 }
 
 void agent::train(vector<record> results, input_sampler isam) {
   int n = results.size();
-  double gamma = 1;
-  int ntest = 100;
+  double gamma = 1 - future_discount;
+  int ntest = 20;
   vector<vec> test_inputs(ntest);
   vector<double> test_outputs(ntest);
   for (int i = 0; i < ntest; i++) {
@@ -124,11 +124,10 @@ void agent::train(vector<record> results, input_sampler isam) {
 
   if (tstats.output_change > 1e-2 / sqrt(age)) {
     tstats.output_change *= 0.75;
-    eval->learning_rate *= 0.75;
+    eval->set_learning_rate(0.75 * eval->learning_rate);
   } else if (tstats.output_change < 1e-4 / sqrt(age)) {
     tstats.output_change *= 1.25;
-    eval->learning_rate *= 1.25;
-    if (eval->learning_rate > 1) eval->learning_rate = 1;
+    eval->set_learning_rate(fmin(1.25 * eval->learning_rate, 1));
   }
 }
 
@@ -149,7 +148,8 @@ agent_ptr agent::mate(agent_ptr p) const {
   a->ancestors.insert(p->id);
   a->score = 0.5 * 0.9 * (score + p->score);
   a->simple_score = 0.5 * 0.9 * (simple_score + p->simple_score);
-  a->original_id = -1;
+  a->original_id = a->id;
+  a->future_discount = fmax(0.5 * (future_discount + p->future_discount) + rnorm(0, 0.01), 0);
   return a;
 }
 
@@ -161,7 +161,8 @@ agent_ptr agent::mutate() const {
   a->score = 0.9 * score;
   a->simple_score = 0.9 * simple_score;
   a->age = age;
-  a->original_id = -1;
+  a->original_id = id;
+  a->future_discount = fmax(future_discount + rnorm(0, 0.01), 0);
   return a;
 }
 
@@ -176,24 +177,14 @@ void agent::initialize_from_input(input_sampler s, int choice_dim, set<int> ireq
 std::string agent::serialize() const {
   stringstream ss;
 
-  ss << id << sep << score << sep << rank << sep << simple_score << sep << was_protected << sep << age << sep << mut_age << sep << ancestors << sep << parents << sep << csel->serialize() << sep << eval->tag << sep << eval->serialize();
+  ss << id << sep << score << sep << rank << sep << simple_score << sep << was_protected << sep << age << sep << mut_age << sep << future_discount << sep << ancestors << sep << parents << sep << csel->serialize() << sep << serialize_evaluator(eval);
   return ss.str();
 }
 
 void agent::deserialize(std::stringstream &ss) {
-  ss >> id >> score >> rank >> simple_score >> was_protected >> age >> mut_age >> ancestors >> parents;
+  ss >> id >> score >> rank >> simple_score >> was_protected >> age >> mut_age >> future_discount >> ancestors >> parents;
   csel->deserialize(ss);
-
-  string tag;
-  ss >> tag;
-
-  if (tag == "tree") {
-    eval = evaluator_ptr(new tree_evaluator);
-  } else {
-    throw runtime_error("Invalid evaluator tag: " + tag);
-  }
-
-  eval->deserialize(ss);
+  eval = deserialize_evaluator(ss);
 
   // guarantee deserializing an agent does not break id generator
   if (id >= idc) idc = id + 1;
@@ -211,15 +202,11 @@ choice_ptr agent::select_choice(game_ptr g) {
   return csel->select(opts);
 }
 
-float agent::complexity_penalty() const {
-  return eval->complexity_penalty();
-}
-
 string agent::status_report() const {
   stringstream ss;
   string comma = ",";
 
-  ss << id << comma << label << comma << age << comma
+  ss << id << comma << label << comma << age << comma << future_discount << comma
      << score << comma << ancestors.size() << comma << parents.size() << comma
      << tstats.rel_change_mean << comma
      << tstats.output_change << comma

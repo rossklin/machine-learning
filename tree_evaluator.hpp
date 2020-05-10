@@ -34,11 +34,12 @@ class tree_evaluator : public evaluator {
     int count_trees();
     bool descendant_exists(tree *p, int lev = 0);
     bool loop_free(int lev = 0);
-    void prune();
+    void prune(double l);
     void mutate(int dim);  // mutate in place
     std::string serialize() const;
     void deserialize(std::stringstream &ss);
     std::set<int> list_inputs() const;
+    void add_inputs(std::vector<int> inputs);
   };
 
   static const hm<std::string, t_unary> &unary_ops();
@@ -51,10 +52,9 @@ class tree_evaluator : public evaluator {
   int depth;
 
   tree_evaluator();
-  tree_evaluator(int depth);
   double evaluate(vec x) override;  // modifies resbuf
   bool update(std::vector<record> results, int age, double &rel_change) override;
-  void prune() override;
+  void prune(double limit = 0) override;
   evaluator_ptr mate(evaluator_ptr partner) const override;
   evaluator_ptr mutate() const override;
   std::string serialize() const override;
@@ -62,9 +62,10 @@ class tree_evaluator : public evaluator {
   void initialize(input_sampler sampler, int cdim, std::set<int> ireq) override;
   std::string status_report() const override;
   evaluator_ptr clone() const override;
-  double complexity_penalty() const override;
   double complexity() const override;
   std::set<int> list_inputs() const override;
+  void add_inputs(std::set<int> inputs) override;
+  void set_learning_rate(double r) override;
 
   void example_setup(int cdim);
 };
