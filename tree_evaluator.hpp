@@ -19,7 +19,7 @@ class tree_evaluator : public evaluator {
     tree_class class_id;
     double const_value;
     int input_index;
-    std::string fname;
+    int fname;
     std::vector<ptr> subtree;
     double resbuf;
 
@@ -42,14 +42,12 @@ class tree_evaluator : public evaluator {
     void add_inputs(std::vector<int> inputs);
   };
 
-  static const hm<std::string, t_unary> &unary_ops();
-  static const hm<std::string, t_binary> &binary_ops();
-
  public:
+  typedef std::shared_ptr<tree_evaluator> ptr;
+
   tree::ptr root;
   double gamma;  // regularization rate
   double weight_limit;
-  int depth;
 
   tree_evaluator();
   double evaluate(vec x) override;  // modifies resbuf
