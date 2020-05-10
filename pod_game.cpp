@@ -83,7 +83,7 @@ record_table pod_game::increment(string row_prefix) {
 
     shared_ptr<pod_choice> c = static_pointer_cast<pod_choice>(p->select_choice(shared_from_this()));
     res[pid].input = vectorize_input(c, pid);
-    res[pid].output = p->evaluate_choice(res[x.first].input);
+    res[pid].output = p->evaluate_choice(res[pid].input);
 
     p->data.a += fmin(angular_speed, fabs(c->angle)) * signum(c->angle);
 
@@ -192,19 +192,19 @@ record_table pod_game::increment(string row_prefix) {
       int pid = x.first;
       pod_agent::ptr p = x.second;
       (*enable_output) << row_prefix
-        << game_id << comma
-        << turns_played << comma
-        << p->team << comma
-        << p->data.lap << comma
-        << pid << comma
-        << p->data.x.x << comma
-        << p->data.x.y << comma
-        << p->data.a << comma
-        << p->data.shield_active << comma
-        << p->data.boost_count << comma
-        << res[pid].reward << comma
-        << cp_xs << comma
-        << cp_ys << endl;
+                       << game_id << comma
+                       << turns_played << comma
+                       << p->team << comma
+                       << p->data.lap << comma
+                       << pid << comma
+                       << p->data.x.x << comma
+                       << p->data.x.y << comma
+                       << p->data.a << comma
+                       << p->data.shield_active << comma
+                       << p->data.boost_count << comma
+                       << res[pid].reward << comma
+                       << cp_xs << comma
+                       << cp_ys << endl;
     }
   }
 
@@ -268,7 +268,7 @@ void pod_game::reset() {
 std::vector<choice_ptr> pod_game::generate_choices(agent_ptr p_base) {
   pod_agent::ptr p = static_pointer_cast<pod_agent>(p_base);
   vector<pod_choice> opts;
-  double thrust_limit = 100 * (1 - p->complexity_penalty());
+  double thrust_limit = 100;
 
   pod_choice cx;
   for (double a = -angular_speed; a <= angular_speed; a += angular_speed / 3) {
