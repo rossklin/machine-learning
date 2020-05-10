@@ -11,8 +11,9 @@
 
 using namespace std;
 
+random_tournament::random_tournament(int gr) : tournament(), game_rounds(gr) {}
+
 void random_tournament::run(population_manager_ptr pm, game_generator_ptr gg, int epoch) {
-  int game_rounds = 100;
   int practice_rounds = 30;
   float score_update_rate = 0.1;
   int ppt = gg->ppt;
