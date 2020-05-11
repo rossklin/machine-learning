@@ -177,11 +177,9 @@ string tree_evaluator::tree::serialize() const {
 
 // mutate in place
 void tree_evaluator::tree::mutate(int dim) {
-  if (u01() < 0.1) {
-    w += rnorm(0, 0.1);
-  }
+  w += rnorm(0, 1e-2);
 
-  double p_grow = 0.001;
+  double p_grow = 0.01;
   double p_reduce = 0.01;
 
   if (subtree.size() > 0) {
@@ -567,9 +565,9 @@ evaluator_ptr tree_evaluator::mate(evaluator_ptr partner_buf) const {
 evaluator_ptr tree_evaluator::mutate() const {
   shared_ptr<tree_evaluator> child = static_pointer_cast<tree_evaluator>(clone());
   child->root->mutate(dim);
-  if (u01() < 0.1) child->learning_rate = fmax(child->learning_rate + rnorm(0, 0.1), 1e-5);
-  if (u01() < 0.1) child->weight_limit = fmax(child->weight_limit * rnorm(1, 0.1), 1);
-  if (u01() < 0.1) child->gamma = fmax(child->gamma + rnorm(0, 1e-3), 0);
+  child->learning_rate = fmax(child->learning_rate + rnorm(0, 0.01), 1e-5);
+  child->weight_limit = fmax(child->weight_limit * rnorm(1, 0.01), 1);
+  child->gamma = fmax(child->gamma + rnorm(0, 1e-3), 0);
   return child;
 }
 
