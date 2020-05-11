@@ -6,6 +6,7 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
+#include <string>
 
 #include "choice.hpp"
 #include "evaluator.hpp"
@@ -18,6 +19,7 @@ using namespace std;
 int agent::idc = 0;
 
 training_stats::training_stats() {
+  n = 0;
   rel_change_mean = 0;
   rel_change_max = 0;
   rate_zero = 0;
@@ -119,6 +121,7 @@ void agent::train(vector<record> results, input_sampler isam) {
     auto_update(tstats.rate_optim_failed, !isfinite(rel_change), tsrate);
   }
 
+  tstats.n++;
   age++;
   mut_age++;
 
@@ -155,7 +158,7 @@ agent_ptr agent::mate(agent_ptr p) const {
 
 agent_ptr agent::mutate() const {
   agent_ptr a = clone();
-  a->eval->mutate();
+  a->eval = a->eval->mutate();
   a->parents = parents;
   a->ancestors = ancestors;
   a->score = 0.9 * score;
@@ -204,9 +207,16 @@ choice_ptr agent::select_choice(game_ptr g) {
 
 string agent::status_report() const {
   stringstream ss;
-  string comma = ",";
+  vector<int> parent_ids(parents.begin(), parents.end());
+  string parent_hash;
 
-  ss << id << comma << label << comma << age << comma << future_discount << comma
+  if (parents.size()) {
+    parent_hash = join_string(map<int, string>([](int i) { return to_string(i); }, parent_ids), "#");
+  } else {
+    parent_hash = "creation";
+  }
+
+  ss << id << comma << parent_hash << comma << label << comma << age << comma << future_discount << comma
      << score << comma << ancestors.size() << comma << parents.size() << comma
      << tstats.rel_change_mean << comma
      << tstats.output_change << comma

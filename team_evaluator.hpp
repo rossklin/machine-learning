@@ -13,7 +13,7 @@ class team_evaluator : public evaluator {
  public:
   typedef std::shared_ptr<team_evaluator> ptr;
 
-  team_evaluator() = default;
+  team_evaluator();
   team_evaluator(std::vector<evaluator_ptr> e, int ri);
 
   double evaluate(vec x) override;

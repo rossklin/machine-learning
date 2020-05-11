@@ -21,6 +21,7 @@ struct training_stats {
   double rate_correct_sign;
   double rate_optim_failed;
   double output_change;
+  int n;
 
   training_stats();
 };

@@ -8,6 +8,10 @@
 
 using namespace std;
 
+team_evaluator::team_evaluator() {
+  tag = "team";
+}
+
 team_evaluator::team_evaluator(vector<evaluator_ptr> e, int ri) : evals(e), role_index(ri) {
   tag = "team";
   set_learning_rate(fabs(rnorm(0, 0.5)));
@@ -34,7 +38,7 @@ bool team_evaluator::update(std::vector<record> results, int age, double &rel_ch
   assert(team_idx < evals.size());
   bool res = evals[team_idx]->update(results, age, rel_change);
   update_stable();
-  return res;
+  return res && stable;
 }
 
 void team_evaluator::prune(double l) {
@@ -46,7 +50,7 @@ evaluator_ptr team_evaluator::mate(evaluator_ptr _partner) const {
   int n = evals.size();
   team_evaluator::ptr partner = static_pointer_cast<team_evaluator>(_partner);
   team_evaluator::ptr child(new team_evaluator(*this));
-  for (int i = 0; i < n; i++) child->evals[i] = evals[i]->mate(sample_one(partner->evals));
+  for (int i = 0; i < n; i++) child->evals[i] = sample_one(evals)->mate(sample_one(partner->evals));
   child->set_learning_rate(fmax(0.5 * (learning_rate + _partner->learning_rate + rnorm(0, 1e-2)), 1e-5));
   child->update_stable();
 
@@ -55,7 +59,7 @@ evaluator_ptr team_evaluator::mate(evaluator_ptr _partner) const {
 
 evaluator_ptr team_evaluator::mutate() const {
   team_evaluator::ptr child(new team_evaluator(*this));
-  for (auto e : child->evals) e->mutate();
+  for (int i = 0; i < child->evals.size(); i++) child->evals[i] = evals[i]->mutate();
   child->set_learning_rate(fmax(learning_rate + rnorm(0, 1e-2), 1e-5));
   child->update_stable();
   return child;
