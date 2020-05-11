@@ -25,6 +25,8 @@ using namespace std;
 #define SCORE_UPDATE_RATE 0.01
 
 void write_stats(unsigned int run_id, unsigned int epoch, game_generator_ptr ggn, population_manager_ptr pop) {
+  pop->sortpop();
+
   // backup complete population
   ofstream f("save/run-" + to_string(run_id) + "-epoch-" + to_string(epoch) + ".txt");
   f << run_id << sep << epoch << sep << pop->serialize();
@@ -55,7 +57,7 @@ void write_stats(unsigned int run_id, unsigned int epoch, game_generator_ptr ggn
     // play five refgames vs retired agents
     if (!pop->retirement.size()) continue;
 
-    int ret_idx = min((int)pop->retirement.size(), 10);
+    int ret_idx = min((int)pop->retirement.size() - 1, 10);
     agent_ptr b = pop->retirement[ret_idx];
     row_prefix = to_string(run_id) + comma + to_string(epoch) + "," + to_string(rank) + ",retiree#" + to_string(b->id) + ",";
     for (int j = 0; j < 5; j++) {
@@ -65,7 +67,7 @@ void write_stats(unsigned int run_id, unsigned int epoch, game_generator_ptr ggn
       gr->enable_output = &fgame;
       gr->play(epoch, row_prefix);
 
-      ss << epoch << comma << "retiree" << comma << a->rank << comma << a->status_report() << comma << gr->end_stats() << endl;
+      ss << epoch << comma << ("retiree#" + to_string(b->id)) << comma << a->rank << comma << a->status_report() << comma << gr->end_stats() << endl;
     }
   }
   fgame.close();
@@ -83,7 +85,7 @@ void write_stats(unsigned int run_id, unsigned int epoch, game_generator_ptr ggn
     f.close();
   }
 
-  cout << "Completed epoch " << epoch << ", meta: " << endl
+  cout << "Stats for epoch " << epoch << ": " << endl
        << xmeta << endl;
 }
 
@@ -94,6 +96,7 @@ void evolution(game_generator_ptr ggn, tournament_ptr trm, population_manager_pt
 
   unsigned int start_epoch = 1;
   unsigned int run_id = rand_int(1, INT32_MAX);
+  bool did_load = false;
 
   if (loadfile.length() > 0) {
     ifstream f(loadfile, ios::in);
@@ -102,20 +105,25 @@ void evolution(game_generator_ptr ggn, tournament_ptr trm, population_manager_pt
 
     ss >> run_id >> start_epoch;
     pop->deserialize(ss);
-    start_epoch++;
+    did_load = true;
+    cout << "Arena: loaded epoch " << start_epoch << endl;
   }
 
-  cout << "ARENA: RUN ID: " << run_id << endl;
-
   for (unsigned int epoch = start_epoch; true; epoch++) {
-    pop->prepare_epoch(epoch, ggn);
-    trm->run(pop, ggn, epoch);
+    if (!did_load) {
+      cout << "ARENA: RUN ID: " << run_id << ": starting epoch " << epoch << endl;
+      pop->prepare_epoch(epoch, ggn);
+      trm->run(pop, ggn, epoch);
+
+      cout << "Arena: epoch " << epoch << ": completed game rounds, generating epoch stats" << endl;
+      write_stats(run_id, epoch, ggn, pop);
+      cout << "Done" << endl;
+    }
 
     // train on all games and update player scores
-    cout << "Arena: epoch " << epoch << ": completed game rounds" << endl;
+    cout << "Start mating and mutating" << endl;
     pop->evolve(ggn);
-
-    cout << "Mating and mutation done, generating epoch stats" << endl;
-    write_stats(run_id, epoch, ggn, pop);
+    cout << "Mating and mutation done" << endl;
+    did_load = false;
   }
 }
