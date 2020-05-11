@@ -43,6 +43,7 @@ team.evaluator.cols <- c("treesize", "lrate", "gamma0", "gamma1")
 
 agent.cols <- c(
     "pid",
+    "phash",
     "label",
     "age",
     "future.discount",
@@ -125,65 +126,92 @@ df.pt %>%
 ## ****************************************
 ## POPULATION ANALYSIS
 ## ****************************************
-
-run.id <- "4239058643"
+run.id <- "2939787966"
+filter.epoch <- 20
 
 df.pt <- setNames(read.csv(paste0("data/run-", run.id, "-population.csv"), header=F, stringsAsFactors=F), c("epoch", "rank", agent.cols))
 
+rank.limit <- 8
 plot.rate <- df.pt %>%
-    select(epoch, pid, starts_with("training.rate")) %>%
-    ## filter(pid %in% top.pids) %>%
-    pivot_longer(-c(epoch, pid)) %>%
-    ggplot(aes(x = epoch, y = value, group = name, color = name)) +
+    filter(rank < rank.limit, epoch > filter.epoch) %>%
+    select(epoch, starts_with("training.rate")) %>%
+    pivot_longer(-c(epoch)) %>%
+    ggplot(aes(x = epoch, y = value)) +
+    geom_point() +
     geom_smooth(size=2, alpha=0.3) +
     facet_grid(.~name, scales="free")
 
 plot.rel <- df.pt %>%
-    select(epoch, pid, starts_with("training.rel")) %>%
-    ## filter(pid %in% top.pids) %>%
-    pivot_longer(-c(epoch, pid)) %>%
-    ggplot(aes(x = epoch, y = value, color = name)) +
+    filter(rank < rank.limit, epoch > filter.epoch) %>%
+    select(epoch, starts_with("training.rel")) %>%
+    pivot_longer(-c(epoch)) %>%
+    ggplot(aes(x = epoch, y = value)) +
     geom_smooth() +
+    geom_point() +
     facet_grid(.~name)
 
-rank.limit <- 8
 pop.plot <- df.pt %>%
-    filter(rank < rank.limit) %>%
+    filter(rank < rank.limit, epoch > filter.epoch) %>%
     transmute(
         epoch = epoch,
+        phash = phash,
         ancestors = nancestors,
         age.per10 = age / 10,
-        treesize.per10 = treesize / 10
+        treesize = treesize
     ) %>%
-    pivot_longer(-epoch) %>%
+    pivot_longer(-c(epoch, phash)) %>%
     arrange(epoch) %>%
     ggplot(aes(x = epoch, y = value, group = name, color = name)) +
     geom_point() +
-    geom_smooth()
+    geom_smooth(method="lm",aes(group = interaction(name,phash)))
 
 ## ****************************************
 ## REFERENCE GAME STATISTICS
 ## ****************************************
 df.meta <- setNames(
-    read.csv(paste0("data/run-", run.id, "-refgames.csv"), header=F),
+    read.csv(paste0("data/run-", run.id, "-refgames.csv"), header=F, stringsAsFactors=F),
     c("epoch", "opponent", "rank", agent.cols, pod.game.cols)
 ) %>%
     mutate(win = as.numeric(relative >= 1))
 
 span <- NULL
-ref.plot <- ggplot(
-    df.meta %>% filter(rank == 1),
-    aes(x = epoch, y = relative, shape = as.factor(did.finish), color = opponent, group = opponent)
-) +
-    geom_point(aes(size=age), alpha=0.25) +
-    geom_smooth(se=F, span=span, aes(shape = NULL)) + ## relative speed
-    geom_smooth(se=F, span=span, linetype="dashed", aes(y = 2 * win, shape=NULL)) + ## winrate
+ref.plot <- df.meta %>%
+    filter(rank < 3, opponent == "refbot", epoch > filter.epoch) %>%
+    mutate(phash = ifelse(epoch >= max(epoch) - 10, phash, "old")) %>%
+    ggplot(
+        aes(x = epoch, y = relative, shape = as.factor(did.finish), color = phash, group = phash)
+    ) +
+    geom_point(aes(size=age), alpha=0.3) +
+    geom_smooth(method="lm", se=F, span=span, size=1, aes(shape = NULL)) + ## relative speed
+    geom_smooth(method="lm", se=F, span=span, size=1, linetype="dashed", aes(y = 2 * win, shape=NULL)) + ## winrate
+    geom_smooth(color = "black", se=F, span=span, size=1, aes(shape = NULL, color = NULL, group = NULL)) + ## relative speed
+    geom_smooth(color = "black", se=F, span=span, size=1, linetype="dashed", aes(y = 2 * win, shape=NULL, color = NULL, group = NULL)) + ## winrate
+    geom_hline(yintercept = 0) +
+    geom_hline(yintercept = 1) +
+    coord_cartesian(ylim=c(-1, 2))
+
+span <- NULL
+ref.plot2 <- df.meta %>%
+    filter(rank < 3, epoch > filter.epoch) %>%
+    ggplot(
+        aes(x = epoch, y = relative, shape = as.factor(did.finish), color = opponent, group = opponent)
+    ) +
+    geom_point(aes(size=age), alpha=0.3) +
+    geom_smooth(method="lm", se=F, span=span, size=1, aes(shape = NULL)) + ## relative speed
+    geom_smooth(method="lm", se=F, span=span, size=1, linetype="dashed", aes(y = 2 * win, shape=NULL)) + ## winrate
+    geom_smooth(color = "black", se=F, span=span, size=1, aes(shape = NULL, color = NULL, group = NULL)) + ## relative speed
+    geom_smooth(color = "black", se=F, span=span, size=1, linetype="dashed", aes(y = 2 * win, shape=NULL, color = NULL, group = NULL)) + ## winrate
     geom_hline(yintercept = 0) +
     geom_hline(yintercept = 1) +
     coord_cartesian(ylim=c(-1, 2))
 
 ## COMBINE PLOTS
-grid.arrange(pop.plot, ref.plot, plot.rate, plot.rel, ncol=2)
+grid.arrange(ref.plot, ref.plot2, pop.plot, plot.rate, ncol=2)
+
+df.pt %>%
+    filter(epoch == max(epoch)) %>%
+    select(rank, age, treesize, lrate, gamma0, gamma1) %>%
+    arrange(rank)
 
 summary(lm(win~epoch, data = df.meta %>% filter(rank == 1, opponent == "refbot")))
 

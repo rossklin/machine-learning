@@ -1,7 +1,12 @@
 * todo
-** Why does mutant generator get same complexity in every case?
-** Why are most children generated with ~2x as high complexity as parents, is mate score reversed or something?
-** Create a run-id instead of manually managing data
+** Agent tstats should be serialized
+** [done] For some reason, team evaluator tag was missing from save files, and dim was uninitialized
+Missing from team evaluator default constructor
+** [done] Why does mutant generator get same complexity in every case?
+Population converged to mostly one individual
+** [done] Why are most children generated with ~2x as high complexity as parents, is mate score reversed or something?
+Trial and error searching for required inputs caused higher complexities
+** [done] Create a run-id instead of manually managing data
 ** [done] Specific game data needs info about epoch, rank, opponent and checkpoints
 ** Fine tune inner optimization parameters
 ** Try simulated annealing 
