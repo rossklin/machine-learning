@@ -149,7 +149,12 @@ void population_manager::evolve(game_generator_ptr gg) {
   simple_score_limit = 0.1 * pop[lim_idx]->simple_score + 0.9 * simple_score_limit;
 
   auto cond_drop = [](agent_ptr a) {
-    return a->tstats.rate_successfull < 0.1;
+    if (a->tstats.n > 100 && (a->tstats.rate_successfull < 0.5 || (a->age > 1000 && a->tstats.output_change < 1e-6))) {
+      cout << "Dropping agent with stats: " << a->tstats.rate_successfull << ", " << a->age << ", " << a->tstats.output_change << endl;
+      return true;
+    } else {
+      return false;
+    }
   };
 
   vector<agent_ptr> player_buf;
@@ -192,7 +197,8 @@ void population_manager::evolve(game_generator_ptr gg) {
   // trial between population and retirement
   int n_trial = 10;
   int n_win = 0;
-  if (retirement.size()) {
+  if (retirement.size() && player_buf.size()) {
+    cout << "Playing retirement trials" << endl;
     for (int i = 0; i < n_trial; i++) {
       agent_ptr a = player_buf.front();
       agent_ptr b = retirement.back();
@@ -205,7 +211,9 @@ void population_manager::evolve(game_generator_ptr gg) {
   }
   float qtrial = (n_win + 2 - (retirement.size() > 1)) / (float)n_trial;
 
+  cout << "Qtrial: " << qtrial << endl;
   cout << "PM: keeping " << result_keep << ", retiring " << n_drop << " , protected " << n_protprog << " progressors" << endl;
+  cout << "Retiree count: " << retirement.size() << endl;
 
   auto mate_generator = [this, nkeep, qtrial]() -> agent_ptr {
     agent_ptr parent1;
@@ -230,14 +238,16 @@ void population_manager::evolve(game_generator_ptr gg) {
 
     child->parent_buf = {parent1, parent2};
     if (retirement.size() > 0) child->parent_buf.push_back(sample_one(retirement));
+
     return child;
   };
 
-  auto mutate_generator = [this, nkeep]() -> agent_ptr {
-    int idx1 = rand_int(0, nkeep - 1);
-    agent_ptr child = pop[idx1]->mutate();
-    child->parent_buf = {pop[idx1]};
+  auto mutate_generator = [this]() -> agent_ptr {
+    agent_ptr parent = ranked_sample(pop, 0.33);
+    agent_ptr child = parent->mutate();
+    child->parent_buf = {parent};
     if (retirement.size() > 0) child->parent_buf.push_back(sample_one(retirement));
+
     return child;
   };
 
