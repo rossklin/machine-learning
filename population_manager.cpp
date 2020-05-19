@@ -122,7 +122,6 @@ void population_manager::evolve(game_generator_ptr gg) {
   // pop management parameters
   int protected_age = 5;
   int protected_mut_age = 3;
-  float score_update_rate = 0.03;
 
   // remove unstable players
   for (int i = 0; i < pop.size(); i++) {
@@ -149,7 +148,15 @@ void population_manager::evolve(game_generator_ptr gg) {
   simple_score_limit = 0.1 * pop[lim_idx]->simple_score + 0.9 * simple_score_limit;
 
   auto cond_drop = [](agent_ptr a) {
-    if (a->tstats.n > 100 && (a->tstats.rate_successfull < 0.5 || (a->age > 1000 && a->tstats.output_change < 1e-6))) {
+    bool has_data = a->tstats.n > 100;
+    bool slow_optim = a->tstats.rate_successfull < 0.5;
+    bool slow_update = a->tstats.output_change < 1e-5;
+    bool slow = slow_optim || slow_update;
+    bool stalled = a->tstats.output_change < 1e-6 || a->tstats.rate_successfull < 0.2;
+    bool old = a->age > 1000;
+    bool ancient = a->age > 5000;
+
+    if (ancient || (has_data && (stalled || (old && slow)))) {
       cout << "Dropping agent with stats: " << a->tstats.rate_successfull << ", " << a->age << ", " << a->tstats.output_change << endl;
       return true;
     } else {
@@ -158,11 +165,13 @@ void population_manager::evolve(game_generator_ptr gg) {
   };
 
   vector<agent_ptr> player_buf;
+  int n_retire = 0;
   for (int i = 0; i < nkeep; i++) {
     agent_ptr a = pop[i];
     if (!cond_drop(a)) {
       player_buf.push_back(a);
     } else if (i < 3) {
+      n_retire++;
       retirement.insert(retirement.begin(), a);
     }
   }
@@ -197,6 +206,7 @@ void population_manager::evolve(game_generator_ptr gg) {
   // trial between population and retirement
   int n_trial = 10;
   int n_win = 0;
+  float qtrial = 0.2;
   if (retirement.size() && player_buf.size()) {
     cout << "Playing retirement trials" << endl;
     for (int i = 0; i < n_trial; i++) {
@@ -208,11 +218,12 @@ void population_manager::evolve(game_generator_ptr gg) {
       g->play(1);
       n_win += g->winner == a->team;
     }
-  }
-  float qtrial = (n_win + 2 - (retirement.size() > 1)) / (float)n_trial;
 
-  cout << "Qtrial: " << qtrial << endl;
-  cout << "PM: keeping " << result_keep << ", retiring " << n_drop << " , protected " << n_protprog << " progressors" << endl;
+    qtrial = (n_win + 2 - (retirement.size() > 1)) / (float)n_trial;
+    cout << "Qtrial: " << qtrial << endl;
+  }
+
+  cout << "PM: keeping " << result_keep << ", retiring " << n_retire << ", dropping " << (n_drop - n_retire) << " , protected " << n_protprog << " progressors" << endl;
   cout << "Retiree count: " << retirement.size() << endl;
 
   auto mate_generator = [this, nkeep, qtrial]() -> agent_ptr {
@@ -268,7 +279,7 @@ void population_manager::evolve(game_generator_ptr gg) {
 
   // post processing
   for (auto x : pop) {
-    x->score *= (1 - score_update_rate);
+    x->score *= 0.999;
     x->eval->prune();
   }
 
