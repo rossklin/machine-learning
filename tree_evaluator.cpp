@@ -464,7 +464,7 @@ void tree_evaluator::prune(double l) {
   root->prune(l);
 }
 
-bool tree_evaluator::update(vector<record> results, int age, double &rel_change) {
+bool tree_evaluator::update(vector<record> results, int age, int mut_age, double &rel_change) {
 #if VERBOSE
   // debug
   vec printbuf(input.begin(), input.begin() + 5);

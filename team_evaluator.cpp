@@ -33,10 +33,10 @@ double team_evaluator::evaluate(vec x) {
   return evals[team_idx]->evaluate(x);
 }
 
-bool team_evaluator::update(std::vector<record> results, int age, double &rel_change) {
+bool team_evaluator::update(std::vector<record> results, int age, int mut_age, double &rel_change) {
   int team_idx = results.front().input[role_index];
   assert(team_idx < evals.size());
-  bool res = evals[team_idx]->update(results, age, rel_change);
+  bool res = evals[team_idx]->update(results, age, mut_age, rel_change);
   update_stable();
   return res && stable;
 }

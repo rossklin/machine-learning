@@ -96,7 +96,7 @@ void agent::train(vector<record> results, input_sampler isam) {
   }
 
   double rel_change;
-  bool success = eval->update(results, age, rel_change);
+  bool success = eval->update(results, age, mut_age, rel_change);
 
   vector<double> test_outputs2(ntest), diffs(ntest);
   for (int i = 0; i < ntest; i++) {

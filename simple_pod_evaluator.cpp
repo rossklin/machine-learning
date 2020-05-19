@@ -28,7 +28,7 @@ double simple_pod_evaluator::evaluate(vec x) {
   return angle_match * thrust_match + boost_match;
 }
 
-bool simple_pod_evaluator::update(vector<record> results, int age, double &rel_change) {
+bool simple_pod_evaluator::update(vector<record> results, int age, int mut_age, double &rel_change) {
   rel_change = 0;
   return true;
 }

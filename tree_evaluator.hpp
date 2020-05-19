@@ -51,7 +51,7 @@ class tree_evaluator : public evaluator {
 
   tree_evaluator();
   double evaluate(vec x) override;  // modifies resbuf
-  bool update(std::vector<record> results, int age, double &rel_change) override;
+  bool update(std::vector<record> results, int age, int mut_age, double &rel_change) override;
   void prune(double limit = 0) override;
   evaluator_ptr mate(evaluator_ptr partner) const override;
   evaluator_ptr mutate() const override;
