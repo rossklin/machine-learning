@@ -8,11 +8,11 @@
 
 using namespace std;
 
-team_evaluator::team_evaluator() {
+team_evaluator::team_evaluator() : evaluator() {
   tag = "team";
 }
 
-team_evaluator::team_evaluator(vector<evaluator_ptr> e, int ri) : evals(e), role_index(ri) {
+team_evaluator::team_evaluator(vector<evaluator_ptr> e, int ri) : evaluator(), evals(e), role_index(ri) {
   tag = "team";
   set_learning_rate(fabs(rnorm(0, 0.5)));
   stable = true;
@@ -54,14 +54,18 @@ evaluator_ptr team_evaluator::mate(evaluator_ptr _partner) const {
   child->set_learning_rate(fmax(0.5 * (learning_rate + _partner->learning_rate + rnorm(0, 1e-2)), 1e-5));
   child->update_stable();
 
-  return child;
+  return child->mutate(MUT_RANDOM);
 }
 
-evaluator_ptr team_evaluator::mutate() const {
+evaluator_ptr team_evaluator::mutate(evaluator::dist_category dc) const {
+  if (dc == MUT_RANDOM) dc = sample_one<dist_category>({MUT_SMALL, MUT_MEDIUM, MUT_LARGE});
+
   team_evaluator::ptr child(new team_evaluator(*this));
-  for (int i = 0; i < child->evals.size(); i++) child->evals[i] = evals[i]->mutate();
+  for (int i = 0; i < child->evals.size(); i++) child->evals[i] = evals[i]->mutate(dc);
   child->set_learning_rate(fmax(learning_rate + rnorm(0, 1e-2), 1e-5));
   child->update_stable();
+  child->mut_tag = dc;
+
   return child;
 }
 
@@ -89,14 +93,14 @@ void team_evaluator::initialize(input_sampler sampler, int cdim, std::set<int> i
 }
 
 std::string team_evaluator::status_report() const {
-  string tree_sub = join_string(
-      map<evaluator_ptr, string>(
-          [](evaluator_ptr e) {
-            return e->tag == "tree" ? to_string(static_pointer_cast<tree_evaluator>(e)->gamma) : "NA";
-          },
-          evals),
-      comma);
-  return to_string(complexity()) + comma + to_string(learning_rate) + comma + tree_sub;
+  // string tree_sub = join_string(
+  //     map<evaluator_ptr, string>(
+  //         [](evaluator_ptr e) {
+  //           return e->tag == "tree" ? to_string(static_pointer_cast<tree_evaluator>(e)->gamma) : "NA";
+  //         },
+  //         evals),
+  //     comma);
+  return to_string(complexity()) + comma + to_string(learning_rate) + comma + to_string(mut_tag) + comma + to_string(static_pointer_cast<tree_evaluator>(evals.back())->gamma);
 }
 
 evaluator_ptr team_evaluator::clone() const {

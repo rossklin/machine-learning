@@ -6,6 +6,8 @@
 using namespace std;
 using namespace pod_game_parameters;
 
+simple_pod_evaluator::simple_pod_evaluator() : evaluator() {}
+
 void simple_pod_evaluator::set_learning_rate(double r) {}
 
 // return basic on-track feature
@@ -36,7 +38,7 @@ bool simple_pod_evaluator::update(vector<record> results, int age, int mut_age, 
 void simple_pod_evaluator::prune(double l) {}
 
 evaluator_ptr simple_pod_evaluator::mate(evaluator_ptr partner) const { return evaluator_ptr(new simple_pod_evaluator); }
-evaluator_ptr simple_pod_evaluator::mutate() const { return evaluator_ptr(new simple_pod_evaluator); }
+evaluator_ptr simple_pod_evaluator::mutate(evaluator::dist_category dc) const { return evaluator_ptr(new simple_pod_evaluator); }
 evaluator_ptr simple_pod_evaluator::clone() const { return evaluator_ptr(new simple_pod_evaluator); }
 std::string simple_pod_evaluator::serialize() const { return "simple_pod_evaluator"; }
 void simple_pod_evaluator::deserialize(std::stringstream &data) {}

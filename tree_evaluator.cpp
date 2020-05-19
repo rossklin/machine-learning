@@ -176,11 +176,12 @@ string tree_evaluator::tree::serialize() const {
 }
 
 // mutate in place
-void tree_evaluator::tree::mutate(int dim) {
-  w += rnorm(0, 1e-2);
+void tree_evaluator::tree::mutate(int dim, evaluator::dist_category dc) {
+  const vector<double> change = {2e-3, 1e-2, 5e-2};
+  w += rnorm(0, change[dc]);
 
-  double p_grow = 0.01;
-  double p_reduce = 0.01;
+  double p_grow = change[dc];
+  double p_reduce = change[dc];
 
   if (subtree.size() > 0) {
     if (u01() < p_reduce) {
@@ -195,7 +196,7 @@ void tree_evaluator::tree::mutate(int dim) {
         input_index = rand_int(0, dim - 1);
       }
     } else {
-      for (auto t : subtree) t->mutate(dim);
+      for (auto t : subtree) t->mutate(dim, dc);
     }
   } else {
     if (u01() < p_grow) {
@@ -557,17 +558,20 @@ evaluator_ptr tree_evaluator::mate(evaluator_ptr partner_buf) const {
 
   tree::ptr sub = partner->root->get_subtree(0.3);
   child->root->emplace_subtree(sub, 0.3);
-  evaluator_ptr child2 = child->mutate();
 
-  return child2;
+  return child;
 }
 
-evaluator_ptr tree_evaluator::mutate() const {
+evaluator_ptr tree_evaluator::mutate(evaluator::dist_category dc) const {
+  if (dc == MUT_RANDOM) dc = sample_one<dist_category>({MUT_SMALL, MUT_MEDIUM, MUT_LARGE});
   shared_ptr<tree_evaluator> child = static_pointer_cast<tree_evaluator>(clone());
-  child->root->mutate(dim);
-  child->learning_rate = fmax(child->learning_rate + rnorm(0, 0.01), 1e-5);
-  child->weight_limit = fmax(child->weight_limit * rnorm(1, 0.01), 1);
-  child->gamma = fmax(child->gamma + rnorm(0, 1e-3), 0);
+  child->root->mutate(dim, dc);
+
+  vector<double> spread = {1e-3, 1e-2, 1e-1};
+  child->learning_rate = fmax(child->learning_rate + rnorm(0, spread[dc]), 1e-5);
+  child->weight_limit = fmax(child->weight_limit * rnorm(1, spread[dc]), 1);
+  child->gamma = fmax(child->gamma + rnorm(0, 1e-1 * spread[dc]), 0);
+  child->mut_tag = dc;
   return child;
 }
 

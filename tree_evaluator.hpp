@@ -35,7 +35,7 @@ class tree_evaluator : public evaluator {
     bool descendant_exists(tree *p, int lev = 0);
     bool loop_free(int lev = 0);
     void prune(double l);
-    void mutate(int dim);  // mutate in place
+    void mutate(int dim, dist_category dc);  // mutate in place
     std::string serialize() const;
     void deserialize(std::stringstream &ss);
     std::set<int> list_inputs() const;
@@ -54,7 +54,7 @@ class tree_evaluator : public evaluator {
   bool update(std::vector<record> results, int age, int mut_age, double &rel_change) override;
   void prune(double limit = 0) override;
   evaluator_ptr mate(evaluator_ptr partner) const override;
-  evaluator_ptr mutate() const override;
+  evaluator_ptr mutate(dist_category dc) const override;
   std::string serialize() const override;
   void deserialize(std::stringstream &ss) override;
   void initialize(input_sampler sampler, int cdim, std::set<int> ireq) override;

@@ -5,11 +5,12 @@
 
 class simple_pod_evaluator : public evaluator {
  public:
+  simple_pod_evaluator();
   double evaluate(vec x) override;
   bool update(std::vector<record> results, int age, int mut_age, double &rel_change) override;
   void prune(double limit = 0) override;
   evaluator_ptr mate(evaluator_ptr partner) const override;
-  evaluator_ptr mutate() const override;
+  evaluator_ptr mutate(dist_category dc) const override;
   evaluator_ptr clone() const override;
   std::string serialize() const override;
   void deserialize(std::stringstream &ss) override;

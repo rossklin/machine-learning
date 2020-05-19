@@ -9,14 +9,23 @@
 
 using namespace std;
 
+evaluator::evaluator() {
+  mut_tag = (dist_category)-1;
+  learning_rate = -1;
+  tag = "evaluator";
+  stable = true;
+}
+
 string evaluator::serialize() const {
   stringstream ss;
-  ss << dim << sep << stable << sep << learning_rate;
+  ss << dim << sep << stable << sep << learning_rate << sep << mut_tag;
   return ss.str();
 }
 
 void evaluator::deserialize(stringstream &ss) {
-  ss >> dim >> stable >> learning_rate;
+  int buf;
+  ss >> dim >> stable >> learning_rate >> buf;
+  mut_tag = (dist_category)buf;
 }
 
 void evaluator::set_learning_rate(double r) { learning_rate = r; }
