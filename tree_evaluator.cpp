@@ -524,7 +524,11 @@ bool tree_evaluator::update(vector<record> results, int age, int mut_age, double
 
   double limit = 1e-2 / sqrt(age + 1);  // don't allow stepping more than 1% of weight vector length
 
-  vec step = learning_rate * (1 / ((double)age + 1) * (age * x0 + x) - x0);
+  // Approximate weight of memory data
+  double w_age = 1000 * sigmoid(age, 400);
+  double w_mem = w_age * sigmoid(mut_age, 20) + sqrt(w_age);
+
+  vec step = learning_rate * (1 / (w_mem + 1) * (w_mem * x0 + x) - x0);
 
   if (l2norm(step) > limit * l2norm(x0)) {
     step = limit * l2norm(x0) / l2norm(step) * step;
