@@ -72,7 +72,7 @@ void pure_train(int n) {
       game_ptr g = ggen.team_bots_vs(a);
 
       auto res = g->play(epoch);
-      for (auto x : res) a->train(x.second, isam);
+      a->train(hm_values(res), isam);
 
       omp_set_lock(&writelock);
       ofstream fmeta(fname, ios::app);

@@ -1,4 +1,13 @@
 * todo
+** Many strands seem to get worse after each epoch
+*** [impl] Update agent serialize
+*** See todos in evaluator::update
+*** [impl] Work with memory batches e.g. at tournament level
+*** [impl] Arena should add a phase for playing evaluation games and updating agent score stats
+*** Make forgetfullness and other conf params part of search vector
+*** [impl] Add component agent::optimizer and run stuff from tree_evaluator::update there together with new agent conf variables
+*** Maybe do a proper tournament to more accurately determine ranking
+** [done] Add mut_tag to deserialization
 ** Agent tstats should be serialized
 ** [done] For some reason, team evaluator tag was missing from save files, and dim was uninitialized
 Missing from team evaluator default constructor

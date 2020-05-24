@@ -108,11 +108,11 @@ double mate_score(agent_ptr parent1, agent_ptr x) {
   double different_ancestors = fmin(5, set_symdiff(x->ancestors, parent1->ancestors).size());
   double common_parents = set_intersect(x->parents, parent1->parents).size();
 
-  return x->score + different_ancestors - common_parents - cpenalty;
+  return x->score_tmt + 3 * x->score_refbot.current + 5 * x->score_retiree.current + different_ancestors - common_parents - cpenalty;
 };
 
 void population_manager::sortpop() {
-  sort(pop.begin(), pop.end(), [](agent_ptr a, agent_ptr b) -> bool { return a->score > b->score; });
+  sort(pop.begin(), pop.end(), [](agent_ptr a, agent_ptr b) -> bool { return a->score_tmt > b->score_tmt; });
   for (int i = 0; i < pop.size(); i++) pop[i]->rank = i + 1;
 }
 
@@ -145,7 +145,7 @@ void population_manager::evolve(game_generator_ptr gg) {
 
   // update simple score limit
   int lim_idx = 0.8 * pop.size();
-  simple_score_limit = 0.1 * pop[lim_idx]->simple_score + 0.9 * simple_score_limit;
+  simple_score_limit = 0.1 * pop[lim_idx]->score_simple.current + 0.9 * simple_score_limit;
 
   auto cond_drop = [](agent_ptr a) {
     bool has_data = a->tstats.n > 100;
@@ -277,11 +277,13 @@ void population_manager::evolve(game_generator_ptr gg) {
   player_buf.insert(player_buf.end(), buf.begin(), buf.end());
   pop = player_buf;
 
-  // post processing
-  for (auto x : pop) {
-    x->score *= 0.999;
-    x->eval->prune();
-  }
+  // // post processing
+  // for (auto x : pop) {
+  //   x->score_tmt *= 0.999;
+
+  //   // Only allow pruning when creating a new agent since it will screw with memory index mapping
+  //   // x->eval->prune();
+  // }
 
   // sort population again
   sortpop();

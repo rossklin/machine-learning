@@ -71,6 +71,11 @@
     "ios": "cpp",
     "locale": "cpp",
     "queue": "cpp",
-    "stack": "cpp"
+    "stack": "cpp",
+    "condition_variable": "cpp",
+    "future": "cpp",
+    "mutex": "cpp",
+    "variant": "cpp",
+    "bit": "cpp"
   }
 }

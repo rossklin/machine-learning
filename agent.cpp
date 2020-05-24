@@ -21,13 +21,23 @@ int agent::idc = 0;
 training_stats::training_stats() {
   n = 0;
   rel_change_mean = 0;
-  rel_change_max = 0;
-  rate_zero = 0;
   rate_accurate = 1;
-  rate_correct_sign = 1;
   rate_successfull = 1;
   output_change = 0;
   rate_optim_failed = 0;
+}
+
+ostream &operator<<(ostream &os, const training_stats &x) {
+  return os << x.n << sep
+            << x.rel_change_mean << sep
+            << x.rate_accurate << sep
+            << x.rate_successfull << sep
+            << x.output_change << sep
+            << x.rate_optim_failed << sep;
+}
+
+istream &operator>>(istream &is, training_stats &x) {
+  return is >> x.n >> x.rel_change_mean >> x.rate_accurate >> x.rate_successfull >> x.output_change >> x.rate_optim_failed;
 }
 
 void auto_update(double &x, double t, double r) {
@@ -67,10 +77,8 @@ agent::agent() {
   lock.Unlock();
 
   original_id = id;
-  score = 0;
   rank = 0;
   last_rank = 0;
-  simple_score = 0;
   was_protected = false;
   age = 0;
   mut_age = 0;
@@ -79,9 +87,8 @@ agent::agent() {
   csel = choice_selector_ptr(new choice_selector(0.2));
 }
 
-void agent::train(vector<record> results, input_sampler isam) {
-  int n = results.size();
-  double gamma = 1 - future_discount;
+void agent::train(vector<vector<record>> results, input_sampler isam) {
+  // Test outputs
   int ntest = 20;
   vector<vec> test_inputs(ntest);
   vector<double> test_outputs(ntest);
@@ -90,14 +97,21 @@ void agent::train(vector<record> results, input_sampler isam) {
     test_outputs[i] = eval->evaluate(test_inputs[i]);
   }
 
-  for (int i = n - 2; i >= 0; i--) {
-    float r = results[i].reward;
-    results[i].sum_future_rewards = r + gamma * results[i + 1].sum_future_rewards;
+  // Calculate SFR
+  double gamma = 1 - future_discount;
+  for (auto res : results) {
+    int n = res.size();
+    for (int i = n - 2; i >= 0; i--) {
+      float r = res[i].reward;
+      res[i].sum_future_rewards = r + gamma * res[i + 1].sum_future_rewards;
+    }
   }
 
-  double rel_change;
-  bool success = eval->update(results, age, mut_age, rel_change);
+  // Optimize evaluator
+  double rel_change = 0;
+  bool success = eval->update(vec_flatten(results), shared_from_this(), rel_change);
 
+  // Test outputs
   vector<double> test_outputs2(ntest), diffs(ntest);
   for (int i = 0; i < ntest; i++) {
     test_outputs2[i] = eval->evaluate(test_inputs[i]);
@@ -109,14 +123,14 @@ void agent::train(vector<record> results, input_sampler isam) {
     eval->stable = false;
   }
 
-  // update training stats
+  // update training stats, age and adapt learning rate
   double tsrate = 0.05;
 
   auto_update(tstats.rate_successfull, success, tsrate);
 
   if (success) {
-    auto_update(tstats.rel_change_mean, rel_change, tsrate);
     auto_update(tstats.output_change, output_change, tsrate);
+    auto_update(tstats.rel_change_mean, rel_change, tsrate);
   } else {
     auto_update(tstats.rate_optim_failed, !isfinite(rel_change), tsrate);
   }
@@ -142,30 +156,46 @@ void agent::set_exploration_rate(float r) {
   csel->set_exploration_rate(r);
 }
 
+double join_vals(vec x) {
+  return sum(x) / x.size();
+}
+
+double mutate_val(double x) {
+  return fmax(rnorm(x, 0.01 * x), 0);
+}
+
 agent_ptr agent::mate(agent_ptr p) const {
   agent_ptr a = clone();
   a->eval = p->eval->mate(eval);
+  a->eval->prune();
   a->parents = {id, p->id};
   a->ancestors = set_union(ancestors, p->ancestors);
   a->ancestors.insert(id);
   a->ancestors.insert(p->id);
-  a->score = 0.5 * 0.9 * (score + p->score);
-  a->simple_score = 0.5 * 0.9 * (simple_score + p->simple_score);
+  a->score_tmt = 0.5 * 0.9 * (score_tmt + p->score_tmt);
   a->original_id = a->id;
-  a->future_discount = fmax(0.5 * (future_discount + p->future_discount) + rnorm(0, 0.01), 0);
-  return a;
+  a->future_discount = join_vals({future_discount, p->future_discount});
+  a->w_reg = join_vals({w_reg, p->w_reg});
+  a->mem_curve = join_vals({mem_curve, p->mem_curve});
+  a->mem_limit = join_vals({mem_limit, p->mem_limit});
+  return a->mutate();
 }
 
 agent_ptr agent::mutate() const {
   agent_ptr a = clone();
   a->eval = a->eval->mutate();
+  a->eval->prune();
   a->parents = parents;
   a->ancestors = ancestors;
-  a->score = 0.9 * score;
-  a->simple_score = 0.9 * simple_score;
+  a->score_tmt = 0.9 * score_tmt;
   a->age = age;
   a->original_id = id;
-  a->future_discount = fmax(future_discount + rnorm(0, 0.01), 0);
+
+  // mutate conf params
+  a->future_discount = mutate_val(a->future_discount);
+  a->w_reg = mutate_val(a->w_reg);
+  a->mem_curve = mutate_val(a->mem_curve);
+  a->mem_limit = mutate_val(a->mem_limit);
   return a;
 }
 
@@ -180,14 +210,58 @@ void agent::initialize_from_input(input_sampler s, int choice_dim, set<int> ireq
 std::string agent::serialize() const {
   stringstream ss;
 
-  ss << id << sep << score << sep << rank << sep << simple_score << sep << was_protected << sep << age << sep << mut_age << sep << future_discount << sep << ancestors << sep << parents << sep << csel->serialize() << sep << serialize_evaluator(eval);
+  // classifiers
+  ss << id << sep
+     << class_id << sep
+     << original_id << sep
+     << label << sep
+
+     // stats
+     << score_tmt << sep
+     << score_simple << sep
+     << score_refbot << sep
+     << score_retiree << sep
+     << retiree_id << sep
+     << rank << sep
+     << last_rank << sep
+     << age << sep
+     << mut_age << sep
+
+     // learning system parameters
+     << future_discount << sep
+     << w_reg << sep      // todo: regularization
+     << mem_limit << sep  // todo: cap nr memories
+     << mem_curve << sep  // todo: length of mem fade curve
+
+     << tstats << sep
+     << parents << sep
+     << ancestors << sep
+
+     << csel->serialize() << sep
+     << serialize_evaluator(eval);
+
   return ss.str();
 }
 
 void agent::deserialize(std::stringstream &ss) {
-  ss >> id >> score >> rank >> simple_score >> was_protected >> age >> mut_age >> future_discount >> ancestors >> parents;
+  ss
+      // classifiers
+      >> id >> class_id >> original_id >> label
+
+      // stats
+      >> score_tmt >> score_simple >> score_refbot >> score_retiree >> retiree_id >> rank >> last_rank >> age >> mut_age
+
+      // learning system parameters
+      >> future_discount >> w_reg >> mem_limit >> mem_curve
+
+      >> tstats >> parents >> ancestors;
+
   csel->deserialize(ss);
   eval = deserialize_evaluator(ss);
+
+  // ss >> id >> score >> rank >> simple_score >> was_protected >> age >> mut_age >> future_discount >> ancestors >> parents;
+  // csel->deserialize(ss);
+  // eval = deserialize_evaluator(ss);
 
   // guarantee deserializing an agent does not break id generator
   if (id >= idc) idc = id + 1;

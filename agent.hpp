@@ -14,11 +14,8 @@ enum agent_class {
 
 struct training_stats {
   double rel_change_mean;
-  double rel_change_max;
   double rate_successfull;
   double rate_accurate;
-  double rate_zero;
-  double rate_correct_sign;
   double rate_optim_failed;
   double output_change;
   int n;
@@ -36,27 +33,40 @@ class agent : public std::enable_shared_from_this<agent> {
   choice_selector_ptr csel;
   evaluator_ptr eval;
 
+  // agent classifiers
   int class_id;
-  int team;
   int id;
   int original_id;
+  std::string label;
+
+  // buffer variables
+  int team;
   int team_index;
   int assigned_game;
-  double score;
-  int last_rank;
-  int rank;
-  double simple_score;
   bool was_protected;
+  std::vector<agent_ptr> parent_buf;  // for use in prepared player
+
+  // stats
+  double score_tmt;
+  dvalue score_simple;
+  dvalue score_refbot;
+  dvalue score_retiree;
+  std::string retiree_id;
+  int rank;
+  int last_rank;
   int age;
   int mut_age;
+
+  // learning system parameters
   double future_discount;
+  double w_reg;      // todo: regularization
+  double mem_limit;  // todo: cap nr memories
+  double mem_curve;  // todo: length of mem fade curve
 
   training_stats tstats;
 
-  std::string label;
   std::set<int> parents;
   std::set<int> ancestors;
-  std::vector<agent_ptr> parent_buf;  // for use in prepared player
 
   // constructors
   agent();
@@ -68,7 +78,7 @@ class agent : public std::enable_shared_from_this<agent> {
   virtual agent_ptr mutate() const;
 
   // modifiers
-  virtual void train(std::vector<record> records, input_sampler isam);
+  virtual void train(std::vector<std::vector<record>> records, input_sampler isam);
   virtual void set_exploration_rate(float r);
   virtual void initialize_from_input(input_sampler s, int choice_dim, std::set<int> ireq);
 

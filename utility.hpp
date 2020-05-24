@@ -4,6 +4,7 @@
 
 #include <functional>
 #include <iostream>
+#include <iterator>
 #include <random>
 #include <set>
 #include <string>
@@ -48,8 +49,8 @@ std::vector<K> hm_keys(hm<K, V> x) {
 }
 
 template <typename K, typename V>
-std::vector<K> hm_values(hm<K, V> x) {
-  std::vector<K> res;
+std::vector<V> hm_values(hm<K, V> x) {
+  std::vector<V> res;
   for (auto y : x) res.push_back(y.second);
   return res;
 }
@@ -105,6 +106,34 @@ template <typename T>
 std::vector<T> vec_append(std::vector<T> a, std::vector<T> b) {
   a.insert(a.end(), b.begin(), b.end());
   return a;
+}
+
+template <typename T, typename it_t>
+T vec_accumulate(
+    it_t first,
+    it_t last,
+    std::function<T(T, it_t)> f,
+    T init) {
+  for (auto i = first; i != last; i++) init = f(init, i);
+  return init;
+}
+
+template <typename T>
+std::vector<T> vec_flatten(std::vector<std::vector<T>> x) {
+  int n = 0;
+  for (auto &y : x) n += y.size();
+  std::vector<T> res;
+  res.reserve(n);
+  for (auto &y : x) res.insert(res.end(), y.begin(), y.end());
+  return y;
+}
+
+std::ostream &operator<<(std::ostream &os, const dvalue &x) {
+  return os << x.current << sep << x.last;
+}
+
+std::istream &operator>>(std::istream &is, dvalue &x) {
+  return is >> x.current >> x.last;
 }
 
 template <typename T>

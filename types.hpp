@@ -33,6 +33,15 @@ struct point {
   double y;
 };
 
+struct dvalue {
+  double current;
+  double last;
+  void push(double x) {
+    last = current;
+    current = x;
+  }
+};
+
 template <typename K, typename V>
 using hm = std::unordered_map<K, V>;
 
@@ -45,6 +54,7 @@ struct record {
 };
 
 typedef hm<int, record> record_table;
+typedef hm<int, std::vector<record>> game_result;
 typedef hm<int, agent_ptr> player_table;
 
 struct t_unary {

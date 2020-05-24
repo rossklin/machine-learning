@@ -23,10 +23,12 @@ class evaluator {
   double learning_rate;
   bool stable;
   dist_category mut_tag;
+  std::vector<std::pair<int, vec>> memories;
 
   evaluator();
+  virtual bool update(std::vector<record> records, agent_ptr a, double &rel_change);
+
   virtual double evaluate(vec x) = 0;
-  virtual bool update(std::vector<record> results, int age, int mut_age, double &rel_change) = 0;
   virtual void prune(double limit = 0) = 0;
   virtual evaluator_ptr mate(evaluator_ptr partner) const = 0;
   virtual evaluator_ptr mutate(dist_category dc = MUT_RANDOM) const = 0;
@@ -39,6 +41,11 @@ class evaluator {
   virtual std::set<int> list_inputs() const = 0;
   virtual void add_inputs(std::set<int> inputs) = 0;
   virtual void set_learning_rate(double r);
+
+ protected:
+  virtual void set_weights(const vec &x) = 0;
+  virtual vec get_weights() const = 0;
+  virtual vec gradient(vec input, double target, double w_reg) const = 0;
 };
 
 evaluator_ptr deserialize_evaluator(std::stringstream &ss);

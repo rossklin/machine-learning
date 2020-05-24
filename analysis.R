@@ -126,10 +126,17 @@ df.pt %>%
 ## ****************************************
 ## POPULATION ANALYSIS
 ## ****************************************
-run.id <- "2939787966"
-filter.epoch <- 20
 
-df.pt <- setNames(read.csv(paste0("data/run-", run.id, "-population.csv"), header=F, stringsAsFactors=F), c("epoch", "rank", agent.cols))
+## Note: from epoch 204, gamma1 is replaced by mut_tag
+run.id <- "2939787966"
+filter.epoch <- 380
+
+df.pt <- setNames(read.csv(paste0("data/run-", run.id, "-population.csv"), header=F, stringsAsFactors=F), c("epoch", "rank", agent.cols)) %>%
+    group_by(epoch, rank) %>%
+    arrange(epoch, rank) %>%
+    filter(row_number() == max(row_number())) %>%
+    group_by %>%
+    filter(epoch >= filter.epoch)
 
 rank.limit <- 8
 plot.rate <- df.pt %>%
@@ -150,8 +157,9 @@ plot.rel <- df.pt %>%
     geom_point() +
     facet_grid(.~name)
 
-pop.plot <- df.pt %>%
-    filter(rank < rank.limit, epoch > filter.epoch) %>%
+df.pop.plot <- df.pt %>%
+    filter(rank < rank.limit, epoch > max(epoch) - 40) %>%
+    mutate(phash = ifelse(epoch >= max(epoch) - 30, phash, "old")) %>%
     transmute(
         epoch = epoch,
         phash = phash,
@@ -160,10 +168,13 @@ pop.plot <- df.pt %>%
         treesize = treesize
     ) %>%
     pivot_longer(-c(epoch, phash)) %>%
-    arrange(epoch) %>%
+    arrange(epoch)
+
+pop.plot <- df.pop.plot %>%
     ggplot(aes(x = epoch, y = value, group = name, color = name)) +
-    geom_point() +
-    geom_smooth(method="lm",aes(group = interaction(name,phash)))
+    geom_point(alpha=.3) +
+    geom_smooth(data = df.pop.plot %>% filter(phash != "old"), method="lm", aes(group = interaction(name,phash))) +
+    coord_cartesian(ylim=c(-1, 1200))
 
 ## ****************************************
 ## REFERENCE GAME STATISTICS
@@ -172,12 +183,17 @@ df.meta <- setNames(
     read.csv(paste0("data/run-", run.id, "-refgames.csv"), header=F, stringsAsFactors=F),
     c("epoch", "opponent", "rank", agent.cols, pod.game.cols)
 ) %>%
-    mutate(win = as.numeric(relative >= 1))
+    mutate(win = as.numeric(relative >= 1)) %>%
+    group_by(epoch, rank, opponent) %>%
+    arrange(epoch, rank, opponent) %>%
+    filter(row_number() == max(row_number())) %>%
+    group_by %>%
+    filter(epoch >= filter.epoch)
 
-span <- NULL
+span <- 1
 ref.plot <- df.meta %>%
-    filter(rank < 3, opponent == "refbot", epoch > filter.epoch) %>%
-    mutate(phash = ifelse(epoch >= max(epoch) - 10, phash, "old")) %>%
+    filter(rank < 3, opponent == "refbot", epoch > max(epoch) - 40) %>%
+    ## mutate(phash = ifelse(epoch >= max(epoch) - 20, phash, "old")) %>%
     ggplot(
         aes(x = epoch, y = relative, shape = as.factor(did.finish), color = phash, group = phash)
     ) +
@@ -190,34 +206,42 @@ ref.plot <- df.meta %>%
     geom_hline(yintercept = 1) +
     coord_cartesian(ylim=c(-1, 2))
 
-span <- NULL
-ref.plot2 <- df.meta %>%
-    filter(rank < 3, epoch > filter.epoch) %>%
-    ggplot(
+ref.plot2.df <- df.meta %>%
+    filter(rank < 3, epoch > max(epoch) - 40)
+
+ref.plot2 <- ref.plot2.df %>% ggplot(
         aes(x = epoch, y = relative, shape = as.factor(did.finish), color = opponent, group = opponent)
-    ) +
+        ) +
+    
     geom_point(aes(size=age), alpha=0.3) +
-    geom_smooth(method="lm", se=F, span=span, size=1, aes(shape = NULL)) + ## relative speed
-    geom_smooth(method="lm", se=F, span=span, size=1, linetype="dashed", aes(y = 2 * win, shape=NULL)) + ## winrate
-    geom_smooth(color = "black", se=F, span=span, size=1, aes(shape = NULL, color = NULL, group = NULL)) + ## relative speed
-    geom_smooth(color = "black", se=F, span=span, size=1, linetype="dashed", aes(y = 2 * win, shape=NULL, color = NULL, group = NULL)) + ## winrate
+
+    geom_smooth(se=F, span=span, size=1, aes(shape = NULL)) + ## relative speed
+    geom_smooth(se=F, span=span, size=1, linetype="dashed", aes(y = 2 * win, shape=NULL)) + ## winrate
+    
+    ## geom_smooth(data = ref.plot2.df %>% filter(opponent == "refbot"), color = "black", se=F, span=span, size=1, aes(shape = NULL, color = NULL, group = NULL)) + ## total relative speed
+    ## geom_smooth(data = ref.plot2.df %>% filter(opponent == "refbot"), color = "black", se=F, span=span, size=1, linetype="dashed", aes(y = 2 * win, shape=NULL, color = NULL, group = NULL)) + ## total winrate
+    
     geom_hline(yintercept = 0) +
     geom_hline(yintercept = 1) +
+    
     coord_cartesian(ylim=c(-1, 2))
 
 ## COMBINE PLOTS
 grid.arrange(ref.plot, ref.plot2, pop.plot, plot.rate, ncol=2)
 
+df.pt %>% filter(epoch == max(epoch)) %>% summary
+
 df.pt %>%
     filter(epoch == max(epoch)) %>%
-    select(rank, age, treesize, lrate, gamma0, gamma1) %>%
-    arrange(rank)
+    select(rank, age, treesize, lrate, gamma0, gamma1, score) %>%
+    arrange(score) %>%
+    data.frame
 
 summary(lm(win~epoch, data = df.meta %>% filter(rank == 1, opponent == "refbot")))
 
 df.meta %>%
-    filter(rank == 1, opponent == "refbot") %>%
-    mutate(decade = ceiling(epoch / 10)) %>%
+    filter(rank < 3, opponent == "refbot") %>%
+    mutate(decade = floor(epoch / 10) + 1) %>%
     group_by(decade, rank) %>%
     summarize(
         winrate = mean(win),
@@ -231,7 +255,7 @@ df.meta %>%
 ## ****************************************
 
 df <- setNames(
-    read.csv("data/game.csv", header=F),
+    read.csv(paste0("data/run-", run.id, "-game.csv"), header=F),
     c(
         "run.id", "epoch", "rank", "opponent",
         "game.id", "turn", "team", "lap", "player.id", "x", "y",
@@ -267,14 +291,15 @@ df.cps <- df.game %>%
 
 df.game <- df.game %>% select(-cp.xs, -cp.ys)
 
-ggplot(
-    df.game %>% filter(turn < 40, turn %% 2 == 0),
-    aes(x, y,
-        color = as.factor(team), 
-        ## shape = as.factor(lap),
-        ## size = reward,
-        )
-) +
+draw.frame <- function(tmax) {
+    ggplot(
+        df.game %>% filter(turn < tmax, turn > tmax - 10, turn %% 2 == 0),
+        aes(x, y,
+            color = as.factor(team), 
+            ## shape = as.factor(lap),
+            ## size = reward,
+            )
+    ) +
 
     ## arrow
     geom_segment(
@@ -303,8 +328,10 @@ ggplot(
     geom_point(
         data = df.cps,
         size = 10,
-        aes(x = cp.xs, y = cp.ys, frame = NULL, color = NULL, size = NULL, shape = as.factor(cp.idx))
+        aes(x = cp.xs, y = cp.ys, frame = NULL, color = as.factor(cp.idx), size = NULL, shape = NULL)
     ) 
+}
+
 
 
 ## ****************************************

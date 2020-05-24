@@ -451,6 +451,14 @@ vec tree_evaluator::tree::get_weights() const {
   return res;
 }
 
+vec tree_evaluator::gradient(vec input, double target, double w_reg) const {
+  vec x = root->get_weights();
+  double output = root->evaluate(input);
+  double delta = target - output;
+  root->calculate_dw(x, 0, delta, 1, w_reg);
+  return x;
+}
+
 evaluator_ptr tree_evaluator::clone() const {
   shared_ptr<tree_evaluator> e(new tree_evaluator(*this));
   e->root = root->clone();
@@ -463,95 +471,6 @@ double tree_evaluator::evaluate(vec x) {
 
 void tree_evaluator::prune(double l) {
   root->prune(l);
-}
-
-bool tree_evaluator::update(vector<record> results, int age, int mut_age, double &rel_change) {
-#if VERBOSE
-  // debug
-  vec printbuf(input.begin(), input.begin() + 5);
-  cout << "Update: input = [" << printbuf << "]" << endl;
-#endif
-
-  rel_change = 0;
-
-  // Single data point:
-  // G = d² = (T-Y)²
-  // dG/dwi = -2 d dy/dw
-
-  // Multiple data point:
-  // d[i] = T[i] - Y[i]
-  // G = ||d||² = Sum { (T[i] - Y[i])²}
-  // dG[i] / dw[j] = -2 d[i] dy[i]/dw[j]
-  // dG/dw[j] = Sum_i dG[i]/dw[j]
-
-  // find minimum of discrepancy wrt step size
-  auto fopt = [this, results](vec x) -> double {
-    double G = 0;
-    tree::ptr buf = root->clone();
-    buf->set_weights(x);
-    for (auto res : results) {
-      double test = buf->evaluate(res.input);
-      G += pow(test - res.sum_future_rewards, 2);
-    }
-    return G;
-  };
-
-  // calculate dG/dw for whole batch
-  auto fgrad = [this, results](vec x) -> vec {
-    int n = x.size();
-    vec dgdw(n, 0);
-    tree::ptr buf = root->clone();
-    buf->set_weights(x);
-
-    for (auto res : results) {
-      double output = buf->evaluate(res.input);
-      double delta = res.sum_future_rewards - output;
-      vec grad(x);
-      buf->calculate_dw(grad, 0, delta, 1, gamma);
-      dgdw = dgdw + grad;
-    }
-
-    return dgdw;
-  };
-
-  vec x0 = root->get_weights();
-  vec x = voptim(x0, fopt, fgrad);
-
-  if (fopt(x) >= fopt(x0)) {
-    rel_change = INFINITY;
-    return false;
-  }
-
-  double limit = 1e-2 / sqrt(age + 1);  // don't allow stepping more than 1% of weight vector length
-
-  // Approximate weight of memory data
-  double w_age = 1000 * sigmoid(age, 400);
-  double w_mem = w_age * sigmoid(mut_age, 20) + sqrt(w_age);
-
-  vec step = learning_rate * (1 / (w_mem + 1) * (w_mem * x0 + x) - x0);
-
-  if (l2norm(step) > limit * l2norm(x0)) {
-    step = limit * l2norm(x0) / l2norm(step) * step;
-  }
-
-  rel_change = l2norm(step) / l2norm(x0);
-
-  root->set_weights(x0 + step);
-
-  // remove subtrees where the weight was reduced to zero
-  prune();
-
-  // scale down weights if too large
-  x = root->get_weights();
-  double wlen = l2norm(x);
-  stable = isfinite(wlen);
-
-  if (stable && wlen > weight_limit) {
-    root->set_weights(weight_limit / wlen * x);
-    prune();
-  }
-
-  return stable;
 }
 
 evaluator_ptr tree_evaluator::mate(evaluator_ptr partner_buf) const {
@@ -597,6 +516,14 @@ void tree_evaluator::deserialize(stringstream &ss) {
 }
 
 void tree_evaluator::set_learning_rate(double r) { learning_rate = r; }
+
+void tree_evaluator::set_weights(const vec &w) {
+  root->set_weights(w);
+}
+
+vec tree_evaluator::get_weights() const {
+  return root->get_weights();
+}
 
 void tree_evaluator::initialize(input_sampler sampler, int cdim, set<int> ireq) {
   stable = true;

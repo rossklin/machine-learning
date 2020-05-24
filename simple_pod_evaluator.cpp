@@ -30,7 +30,7 @@ double simple_pod_evaluator::evaluate(vec x) {
   return angle_match * thrust_match + boost_match;
 }
 
-bool simple_pod_evaluator::update(vector<record> results, int age, int mut_age, double &rel_change) {
+bool simple_pod_evaluator::update(vector<record> results, agent_ptr a, double &rel_change) {
   rel_change = 0;
   return true;
 }
@@ -45,7 +45,9 @@ void simple_pod_evaluator::deserialize(std::stringstream &data) {}
 void simple_pod_evaluator::initialize(input_sampler sampler, int cdim, set<int> ireq) {}
 std::string simple_pod_evaluator::status_report() const { return "dummy status"; }
 double simple_pod_evaluator::complexity() const { return 0; }
-
+void simple_pod_evaluator::set_weights(const vec &w) {}
+vec simple_pod_evaluator::get_weights() const { return {}; }
+vec simple_pod_evaluator::gradient(vec input, double target, double w_reg) const { return {}; }
 set<int> simple_pod_evaluator::list_inputs() const {
   vector<int> buf = seq(0, 100);
   return set<int>(buf.begin(), buf.end());

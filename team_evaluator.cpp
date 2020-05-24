@@ -27,18 +27,71 @@ void team_evaluator::set_learning_rate(double r) {
   for (auto e : evals) e->set_learning_rate(r);
 }
 
+void team_evaluator::set_weights(const vec &w) {
+  // int offset = 0;
+  // for (auto e : evals) {
+  //   int n = e->get_weights().size();
+  //   vec buf(w.begin() + offset, w.begin() + offset + n);
+  //   e->set_weights(buf);
+  //   offset += n;
+  // }
+}
+
+vec team_evaluator::get_weights() const {
+  // vec res;
+  // for (auto e : evals) res = vec_append(res, e->get_weights());
+  // return res;
+  return {};
+}
+
+// gradient of delta² - w_reg |w|
+// wrt w, where delta = target - output
+vec team_evaluator::gradient(vec input, double target, double w_reg) const {
+  // int team_idx = input[role_index];
+  // assert(team_idx < evals.size());
+  // vec res;
+  // for (int i = 0; i < evals.size(); i++) {
+  //   int n = evals[i]->get_weights().size();
+  //   if (i == team_idx) {
+  //     res = vec_append(res, evals[i]->gradient(input, target, w_reg));
+  //   } else {
+  //     res = vec_append(res, vec(n, 0));
+  //   }
+  // }
+
+  // return res;
+  return {};
+}
+
 double team_evaluator::evaluate(vec x) {
   int team_idx = x[role_index];
   assert(team_idx < evals.size());
   return evals[team_idx]->evaluate(x);
 }
 
-bool team_evaluator::update(std::vector<record> results, int age, int mut_age, double &rel_change) {
-  int team_idx = results.front().input[role_index];
-  assert(team_idx < evals.size());
-  bool res = evals[team_idx]->update(results, age, mut_age, rel_change);
+bool team_evaluator::update(std::vector<record> results, agent_ptr a, double &rel_change) {
+  if (results.empty()) return true;
+
+  hm<int, vector<record>> parts;
+
+  for (auto r : results) {
+    int team_idx = r.input[role_index];
+    assert(team_idx < evals.size());
+    parts[team_idx].push_back(r);
+  }
+
+  rel_change = 0;
+  double rc = 0;
+  for (auto x : parts) {
+    bool test = evals[x.first]->update(x.second, a, rc);
+    rel_change += rc;
+    if (!test) return false;
+  }
+
+  rel_change /= parts.size();
+
   update_stable();
-  return res && stable;
+  return stable;
 }
 
 void team_evaluator::prune(double l) {
@@ -51,10 +104,10 @@ evaluator_ptr team_evaluator::mate(evaluator_ptr _partner) const {
   team_evaluator::ptr partner = static_pointer_cast<team_evaluator>(_partner);
   team_evaluator::ptr child(new team_evaluator(*this));
   for (int i = 0; i < n; i++) child->evals[i] = sample_one(evals)->mate(sample_one(partner->evals));
-  child->set_learning_rate(fmax(0.5 * (learning_rate + _partner->learning_rate + rnorm(0, 1e-2)), 1e-5));
+  child->set_learning_rate(0.5 * (learning_rate + _partner->learning_rate));
   child->update_stable();
 
-  return child->mutate(MUT_RANDOM);
+  return child;
 }
 
 evaluator_ptr team_evaluator::mutate(evaluator::dist_category dc) const {

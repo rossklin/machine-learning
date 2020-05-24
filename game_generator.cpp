@@ -121,10 +121,11 @@ agent_ptr game_generator::prepared_player(input_sampler isam, agent_f gen, float
       }
 
       game_ptr g = generate_starting_state(make_teams(pl));
-      const auto res = g->play(i + 1);
-      for (auto x : res) a->train(x.second, isam);
+      const auto recs = hm_values(g->play(i + 1));
 
-      bool complex = a->eval->complexity() > 5;
+      a->train(recs, isam);
+
+      bool complex = a->eval->complexity() > 20;
       bool stable = a->eval->stable;
       bool trainable = a->tstats.rate_successfull > pow(0.975, max_its);
 
@@ -147,7 +148,7 @@ agent_ptr game_generator::prepared_player(input_sampler isam, agent_f gen, float
     }
 
     if (eval > plim) {
-      a->score = eval;
+      a->score_simple.push(eval);
       cout << "prepared_player (" << restarts << " restarts): ACCEPTING " << a->id << " with complexity " << a->eval->complexity() << " at eval = " << eval << endl;
       return a;
     } else {
@@ -183,8 +184,8 @@ agent_ptr game_generator::prepared_player(input_sampler isam, agent_f gen, float
   } while (futs.size());
 
   sort(buf.begin(), buf.end(), [](agent_ptr a, agent_ptr b) -> bool {
-    double sa = a ? a->score : 0;
-    double sb = b ? b->score : 0;
+    double sa = a ? a->score_simple.current : 0;
+    double sb = b ? b->score_simple.current : 0;
     return sa > sb;
   });
 
@@ -200,7 +201,7 @@ vector<agent_ptr> game_generator::prepare_n(agent_f gen, int n, float plim) cons
     cout << "prepare_n: starting " << (i + 1) << "/" << n << endl
          << "----------------------------------------" << endl;
     buf[i] = prepared_player(isam, gen, plim);
-    cout << "prepare_n: completed " << (i + 1) << "/" << n << " score " << buf[i]->score << endl
+    cout << "prepare_n: completed " << (i + 1) << "/" << n << " score " << buf[i]->score_simple.current << endl
          << "----------------------------------------" << endl;
   }
 
