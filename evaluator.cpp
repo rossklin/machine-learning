@@ -1,5 +1,6 @@
 #include "evaluator.hpp"
 
+#include <algorithm>
 #include <sstream>
 
 #include "agent.hpp"
@@ -99,11 +100,23 @@ bool evaluator::update(vector<record> results, agent_ptr a, double &rel_change) 
     return dgdw;
   };
 
-  // todo: random restarts?
-  vec x0 = get_weights();
-  vec x = voptim(x0, fopt, fgrad);
+  vec xprev = get_weights();
 
-  if (fopt(x) >= fopt(x0)) {
+  int restarts = 5;
+  int wdim = xprev.size();
+  typedef pair<double, vec> scored_vec;
+  vector<scored_vec> xs = vec_replicate<scored_vec>(
+      [fopt, fgrad, wdim]() {
+        vec x0 = vec_replicate<double>(bind(rnorm, 0, 1), wdim);
+        vec x = voptim(x0, fopt, fgrad);
+        return make_pair(fopt(x), x);
+      },
+      restarts);
+
+  sort(xs.begin(), xs.end(), [](scored_vec a, scored_vec b) { return a.first < b.first; });
+  vec x = xs.front().second;
+
+  if (fopt(x) >= fopt(xprev)) {
     rel_change = INFINITY;
     return false;
   }
@@ -119,6 +132,7 @@ bool evaluator::update(vector<record> results, agent_ptr a, double &rel_change) 
     memories.resize(a->mem_limit);
   }
 
+  // weight memories by number of data included and memory curve
   vec w = map<int, double>(
       [this, a](int i) -> double {
         return memories[i].first * (1 + sigmoid(a->mem_limit - a->mem_curve - i, a->mem_curve / 3));
@@ -127,11 +141,12 @@ bool evaluator::update(vector<record> results, agent_ptr a, double &rel_change) 
 
   double wsum = sum(w);
 
+  // update weights using weighted sum of memories
   x = vec(x.size(), 0);
   for (int i = 0; i < memories.size(); i++) x = x + w[i] / wsum * memories[i].second;
   set_weights(x);
 
-  rel_change = l2norm(x - x0) / l2norm(x0);
+  rel_change = l2norm(x - xprev) / l2norm(xprev);
   stable = stable && isfinite(rel_change);
 
   return stable;
