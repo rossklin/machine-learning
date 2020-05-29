@@ -21,7 +21,6 @@ int agent::idc = 0;
 training_stats::training_stats() {
   n = 0;
   rel_change_mean = 0;
-  rate_accurate = 1;
   rate_successfull = 1;
   output_change = 0;
   rate_optim_failed = 0;
@@ -30,14 +29,13 @@ training_stats::training_stats() {
 ostream &operator<<(ostream &os, const training_stats &x) {
   return os << x.n << sep
             << x.rel_change_mean << sep
-            << x.rate_accurate << sep
             << x.rate_successfull << sep
             << x.output_change << sep
             << x.rate_optim_failed << sep;
 }
 
 istream &operator>>(istream &is, training_stats &x) {
-  return is >> x.n >> x.rel_change_mean >> x.rate_accurate >> x.rate_successfull >> x.output_change >> x.rate_optim_failed;
+  return is >> x.n >> x.rel_change_mean >> x.rate_successfull >> x.output_change >> x.rate_optim_failed;
 }
 
 void auto_update(double &x, double t, double r) {
@@ -259,10 +257,6 @@ void agent::deserialize(std::stringstream &ss) {
   csel->deserialize(ss);
   eval = deserialize_evaluator(ss);
 
-  // ss >> id >> score >> rank >> simple_score >> was_protected >> age >> mut_age >> future_discount >> ancestors >> parents;
-  // csel->deserialize(ss);
-  // eval = deserialize_evaluator(ss);
-
   // guarantee deserializing an agent does not break id generator
   if (id >= idc) idc = id + 1;
 }
@@ -290,12 +284,36 @@ string agent::status_report() const {
     parent_hash = "creation";
   }
 
-  ss << id << comma << parent_hash << comma << label << comma << age << comma << future_discount << comma
-     << score << comma << ancestors.size() << comma << parents.size() << comma
+  // classifiers
+  ss << id << comma
+     << parent_hash << comma
+     << class_id << comma
+     << original_id << comma
+     << label << comma
+
+     // stats
+     << score_tmt << comma
+     << score_simple << comma
+     << score_refbot << comma
+     << score_retiree << comma
+     << retiree_id << comma
+     << rank << comma
+     << last_rank << comma
+     << age << comma
+     << mut_age << comma
+
+     // learning system parameters
+     << future_discount << comma
+     << w_reg << comma      // todo: regularization
+     << mem_limit << comma  // todo: cap nr memories
+     << mem_curve << comma  // todo: length of mem fade curve
+
      << tstats.rel_change_mean << comma
      << tstats.output_change << comma
      << tstats.rate_successfull << comma
      << tstats.rate_optim_failed << comma
+     << parents.size() << comma
+     << ancestors.size() << comma
      << eval->status_report();
 
   return ss.str();

@@ -13,10 +13,9 @@ enum agent_class {
 };
 
 struct training_stats {
-  double rel_change_mean;
   double rate_successfull;
-  double rate_accurate;
   double rate_optim_failed;
+  double rel_change_mean;
   double output_change;
   int n;
 
