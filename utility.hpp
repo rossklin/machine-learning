@@ -125,16 +125,18 @@ std::vector<T> vec_flatten(std::vector<std::vector<T>> x) {
   std::vector<T> res;
   res.reserve(n);
   for (auto &y : x) res.insert(res.end(), y.begin(), y.end());
-  return y;
+  return res;
 }
 
-std::ostream &operator<<(std::ostream &os, const dvalue &x) {
-  return os << x.current << sep << x.last;
+template <typename T>
+std::vector<T> vec_replicate(std::function<T()> f, int n) {
+  std::vector<T> res(n);
+  for (int i = 0; i < n; i++) res[i] = f();
+  return res;
 }
 
-std::istream &operator>>(std::istream &is, dvalue &x) {
-  return is >> x.current >> x.last;
-}
+std::ostream &operator<<(std::ostream &os, const dvalue &x);
+std::istream &operator>>(std::istream &is, dvalue &x);
 
 template <typename T>
 std::ostream &operator<<(std::ostream &os, const std::vector<T> &x) {

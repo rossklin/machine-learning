@@ -35,7 +35,7 @@ string join_string(const vector<string> vec, string delim) {
   return ss.str();
 }
 
-vec voptim(vec x, std::function<double(vec)> fopt, std::function<vec(vec)> fgrad) {
+vec voptim(vec x, function<double(vec)> fopt, function<vec(vec)> fgrad) {
   double xlim = 2e-2 * l2norm(x);
   double border = 1e3 * l2norm(x);
   vec d = fgrad(x);
@@ -96,7 +96,7 @@ vec voptim(vec x, std::function<double(vec)> fopt, std::function<vec(vec)> fgrad
 }
 
 // minimize f > 0
-double foptim(double x, std::function<double(double)> f) {
+double foptim(double x, function<double(double)> f) {
   double xlim = 2e-2 * fabs(x);
   double h = 1e-2 * xlim;
   double edge = 1e3 * fabs(x);
@@ -254,6 +254,14 @@ istream &operator>>(istream &os, vec &x) {
   for (auto &y : x) os >> y;
   return os;
 };
+
+ostream &operator<<(ostream &os, const dvalue &x) {
+  return os << x.current << sep << x.last;
+}
+
+istream &operator>>(istream &is, dvalue &x) {
+  return is >> x.current >> x.last;
+}
 
 double l2norm(vec x) {
   double s = 0;
