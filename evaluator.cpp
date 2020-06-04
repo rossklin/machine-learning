@@ -55,6 +55,10 @@ string serialize_evaluator(evaluator_ptr e) {
   return ss.str();
 }
 
+void evaluator::reset_memory_weights(double a) {
+  for (auto &m : memories) m.first *= a;
+}
+
 bool evaluator::update(vector<record> results, agent_ptr a, double &rel_change) {
   // move to agent conf param
   rel_change = 0;
@@ -121,11 +125,12 @@ bool evaluator::update(vector<record> results, agent_ptr a, double &rel_change) 
     return false;
   }
 
-  memories.insert(memories.begin(), make_pair(n, x));
+  double perf_w = fmax(a->score_refbot.value_ma, 1e-3);  // weight memory by current performance
+  memories.insert(memories.begin(), make_pair(n * perf_w, x));
 
   // todo: cluster and weight memories
 
-  if (memories.size() > a->mem_limit) {
+  if (memories.size() > a->mem_limit && a->mem_limit > 0) {
     // merge extra memories
     int i = a->mem_limit - 1;
     memories[i] = make_pair(memories[i].first + memories[i + 1].first, 0.5 * (memories[i].second + memories[i + 1].second));
@@ -135,7 +140,7 @@ bool evaluator::update(vector<record> results, agent_ptr a, double &rel_change) 
   // weight memories by number of data included and memory curve
   vec w = map<int, double>(
       [this, a](int i) -> double {
-        return memories[i].first * (1 + sigmoid(a->mem_limit - a->mem_curve - i, a->mem_curve / 3));
+        return memories[i].first * (2 + sigmoid(a->mem_limit - a->mem_curve - i, a->mem_curve / 3));
       },
       seq(0, memories.size() - 1));
 

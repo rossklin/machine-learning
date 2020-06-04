@@ -23,10 +23,11 @@ class evaluator {
   double learning_rate;
   bool stable;
   dist_category mut_tag;
-  std::vector<std::pair<int, vec>> memories;
+  std::vector<std::pair<double, vec>> memories;
 
   evaluator();
   virtual bool update(std::vector<record> records, agent_ptr a, double &rel_change);
+  virtual void reset_memory_weights(double a);
 
   virtual double evaluate(vec x) = 0;
   virtual void prune(double limit = 0) = 0;
