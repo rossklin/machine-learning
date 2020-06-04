@@ -7,6 +7,7 @@
 
 #include "choice.hpp"
 #include "types.hpp"
+#include "utility.hpp"
 
 enum agent_class {
   POD_AGENT
@@ -46,11 +47,10 @@ class agent : public std::enable_shared_from_this<agent> {
   std::vector<agent_ptr> parent_buf;  // for use in prepared player
 
   // stats
-  double score_tmt;
+  double score_tmt_buf;
+  dvalue score_tmt;
   dvalue score_simple;
   dvalue score_refbot;
-  dvalue score_retiree;
-  std::string retiree_id;
   int rank;
   int last_rank;
   int age;
@@ -61,6 +61,7 @@ class agent : public std::enable_shared_from_this<agent> {
   double w_reg;      // todo: regularization
   double mem_limit;  // todo: cap nr memories
   double mem_curve;  // todo: length of mem fade curve
+  int inspiration_age_limit;
 
   training_stats tstats;
 

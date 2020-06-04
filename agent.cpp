@@ -38,8 +38,9 @@ istream &operator>>(istream &is, training_stats &x) {
   return is >> x.n >> x.rel_change_mean >> x.rate_successfull >> x.output_change >> x.rate_optim_failed;
 }
 
-void auto_update(double &x, double t, double r) {
-  x = r * t + (1 - r) * x;
+void auto_update(double &x, double t, double gamma, double n) {
+  double hw = (1 - pow(gamma, n)) / (1 - gamma);
+  x = (t + hw * x) / (hw + 1);
 }
 
 string serialize_agent(agent_ptr a) {
@@ -122,15 +123,15 @@ void agent::train(vector<vector<record>> results, input_sampler isam) {
   }
 
   // update training stats, age and adapt learning rate
-  double tsrate = 0.05;
+  double tsrate = 0.9;
 
-  auto_update(tstats.rate_successfull, success, tsrate);
+  auto_update(tstats.rate_successfull, success, tsrate, tstats.n);
 
   if (success) {
-    auto_update(tstats.output_change, output_change, tsrate);
-    auto_update(tstats.rel_change_mean, rel_change, tsrate);
+    auto_update(tstats.output_change, output_change, tsrate, tstats.n);
+    auto_update(tstats.rel_change_mean, rel_change, tsrate, tstats.n);
   } else {
-    auto_update(tstats.rate_optim_failed, !isfinite(rel_change), tsrate);
+    auto_update(tstats.rate_optim_failed, !isfinite(rel_change), tsrate, tstats.n);
   }
 
   tstats.n++;
@@ -170,7 +171,6 @@ agent_ptr agent::mate(agent_ptr p) const {
   a->ancestors = set_union(ancestors, p->ancestors);
   a->ancestors.insert(id);
   a->ancestors.insert(p->id);
-  a->score_tmt = 0.5 * 0.9 * (score_tmt + p->score_tmt);
   a->original_id = a->id;
   a->future_discount = join_vals({future_discount, p->future_discount});
   a->w_reg = join_vals({w_reg, p->w_reg});
@@ -185,7 +185,6 @@ agent_ptr agent::mutate() const {
   a->eval->prune();
   a->parents = parents;
   a->ancestors = ancestors;
-  a->score_tmt = 0.9 * score_tmt;
   a->age = age;
   a->original_id = id;
 
@@ -215,11 +214,9 @@ std::string agent::serialize() const {
      << label << sep
 
      // stats
-     << score_tmt << sep
-     << score_simple << sep
-     << score_refbot << sep
-     << score_retiree << sep
-     << retiree_id << sep
+     << score_tmt.serialize(sep) << sep
+     << score_simple.serialize(sep) << sep
+     << score_refbot.serialize(sep) << sep
      << rank << sep
      << last_rank << sep
      << age << sep
@@ -230,6 +227,7 @@ std::string agent::serialize() const {
      << w_reg << sep      // todo: regularization
      << mem_limit << sep  // todo: cap nr memories
      << mem_curve << sep  // todo: length of mem fade curve
+     << inspiration_age_limit << sep
 
      << tstats << sep
      << parents << sep
@@ -244,13 +242,17 @@ std::string agent::serialize() const {
 void agent::deserialize(std::stringstream &ss) {
   ss
       // classifiers
-      >> id >> class_id >> original_id >> label
+      >> id >> class_id >> original_id >> label;
 
-      // stats
-      >> score_tmt >> score_simple >> score_refbot >> score_retiree >> retiree_id >> rank >> last_rank >> age >> mut_age
+  // stats
+  score_tmt.deserialize(ss);
+  score_simple.deserialize(ss);
+  score_refbot.deserialize(ss);
+
+  ss >> rank >> last_rank >> age >> mut_age
 
       // learning system parameters
-      >> future_discount >> w_reg >> mem_limit >> mem_curve
+      >> future_discount >> w_reg >> mem_limit >> mem_curve >> inspiration_age_limit
 
       >> tstats >> parents >> ancestors;
 
@@ -292,11 +294,9 @@ string agent::status_report() const {
      << label << comma
 
      // stats
-     << score_tmt << comma
-     << score_simple << comma
-     << score_refbot << comma
-     << score_retiree << comma
-     << retiree_id << comma
+     << score_tmt.serialize(comma) << comma
+     << score_simple.serialize(comma) << comma
+     << score_refbot.serialize(comma) << comma
      << rank << comma
      << last_rank << comma
      << age << comma
@@ -307,6 +307,7 @@ string agent::status_report() const {
      << w_reg << comma      // todo: regularization
      << mem_limit << comma  // todo: cap nr memories
      << mem_curve << comma  // todo: length of mem fade curve
+     << inspiration_age_limit << comma
 
      << tstats.rel_change_mean << comma
      << tstats.output_change << comma
