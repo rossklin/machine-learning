@@ -81,7 +81,11 @@ agent::agent() {
   was_protected = false;
   age = 0;
   mut_age = 0;
-  future_discount = rnorm(0.1, 0.03);
+  future_discount = fabs(rnorm(0.1, 0.03));
+  w_reg = fabs(rnorm(1e-2, 1e-3));
+  mem_limit = fabs(rnorm(1e2, 5e1));
+  mem_curve = fabs(rnorm(2e1, 1e1));
+  inspiration_age_limit = fabs(rnorm(1e1, 2));
 
   csel = choice_selector_ptr(new choice_selector(0.2));
 }
@@ -176,6 +180,7 @@ agent_ptr agent::mate(agent_ptr p) const {
   a->w_reg = join_vals({w_reg, p->w_reg});
   a->mem_curve = join_vals({mem_curve, p->mem_curve});
   a->mem_limit = join_vals({mem_limit, p->mem_limit});
+  a->inspiration_age_limit = join_vals({(double)inspiration_age_limit, (double)p->inspiration_age_limit});
   return a->mutate();
 }
 
@@ -193,6 +198,7 @@ agent_ptr agent::mutate() const {
   a->w_reg = mutate_val(a->w_reg);
   a->mem_curve = mutate_val(a->mem_curve);
   a->mem_limit = mutate_val(a->mem_limit);
+  a->inspiration_age_limit = mutate_val(a->inspiration_age_limit);
   return a;
 }
 
