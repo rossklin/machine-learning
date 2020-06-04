@@ -36,11 +36,10 @@ struct test_vars {
 };
 
 test_vars test_games(game_generator_ptr ggn, agent_ptr a, agent_ptr b) {
-  int ntest = 100;
+  int ntest = 10;
   test_vars res;
   MutexType m;
 
-#pragma omp parallel for
   for (int j = 0; j < ntest; j++) {
     game_ptr gr = ggn->generate_starting_state(ggn->make_teams({a, b}));
     gr->play(1);
@@ -63,53 +62,26 @@ test_vars test_games(game_generator_ptr ggn, agent_ptr a, agent_ptr b) {
   return res;
 }
 
-void write_stats(unsigned int run_id, unsigned int epoch, game_generator_ptr ggn, population_manager_ptr pop) {
-  pop->sortpop();
+void run_tests(game_generator_ptr ggn, population_manager_ptr pm) {
+  cout << "Start running tests" << endl;
 
-  // // backup complete population
-  // ofstream f("save/run-" + to_string(run_id) + "-epoch-" + to_string(epoch) + ".txt");
-  // f << run_id << sep << epoch << sep << pop->serialize();
-  // f.close();
+  agent_ptr ref = pm->refbot;
+  if (!ref) ref = ggn->refbot_generator();
 
-  // // reference game
-  // stringstream ss;
-  // string row_prefix;
-  // fstream fgame("data/run-" + to_string(run_id) + "-game.csv", ios::app);
-
-  for (int rank = 0; rank < 10; rank++) {
-    agent_ptr a = pop->pop[rank];
-    test_vars res = test_games(ggn, a, ggn->refbot_generator());
+#pragma omp parallel for
+  for (int i = 0; i < pm->pop.size(); i++) {
+    agent_ptr a = pm->pop[i];
+    test_vars res = test_games(ggn, a, ref);
 
     a->score_refbot.push(res.wins + 0.5 * res.ties);
     a->score_simple.push(res.speed);
-
-    // play five refgames vs retired agents
-    if (!pop->retirement.size()) continue;
-
-    int ret_idx = min((int)pop->retirement.size() - 1, 10);
-    agent_ptr b = pop->retirement[ret_idx];
-    res = test_games(ggn, a, b);
-
-    a->score_retiree.push(res.wins + 0.5 * res.ties);
-    a->retiree_id = b->id;
-
-    // row_prefix = to_string(run_id) + comma + to_string(epoch) + "," + to_string(rank) + ",retiree#" + to_string(b->id) + ",";
-    // for (int j = 0; j < 5; j++) {
-    //   agent_ptr a = pop->pop[rank];
-    //   game_ptr gr = ggn->generate_starting_state(ggn->make_teams({a, b}));
-
-    //   if (j == 0) gr->enable_output = &fgame;
-    //   gr->play(epoch, row_prefix);
-
-    //   ss << epoch << comma << ("retiree#" + to_string(b->id)) << comma << a->rank << comma << a->status_report() << comma << gr->end_stats() << endl;
-    // }
   }
-  // fgame.close();
 
-  // string xmeta = ss.str();
-  // ofstream fmeta("data/run-" + to_string(run_id) + "-refgames.csv", ios::app);
-  // fmeta << xmeta;
-  // fmeta.close();
+  cout << "Completed running tests" << endl;
+}
+
+void write_stats(unsigned int run_id, unsigned int epoch, game_generator_ptr ggn, population_manager_ptr pop) {
+  pop->sortpop();
 
   // player stats
   ofstream fstat("data/run-" + to_string(run_id) + "-population.csv", ios::app);
@@ -123,9 +95,6 @@ void write_stats(unsigned int run_id, unsigned int epoch, game_generator_ptr ggn
     f << serialize_agent(a);
     f.close();
   }
-
-  // cout << "Stats for epoch " << epoch << ": " << endl
-  //      << xmeta << endl;
 }
 
 void evolution(game_generator_ptr ggn, tournament_ptr trm, population_manager_ptr pop, int threads, string loadfile) {
@@ -152,7 +121,10 @@ void evolution(game_generator_ptr ggn, tournament_ptr trm, population_manager_pt
     if (!did_load) {
       cout << "ARENA: RUN ID: " << run_id << ": starting epoch " << epoch << endl;
       pop->prepare_epoch(epoch, ggn);
+
+      run_tests(ggn, pop);
       trm->run(pop, ggn, epoch);
+      run_tests(ggn, pop);
 
       cout << "Arena: epoch " << epoch << ": completed game rounds, generating epoch stats" << endl;
       write_stats(run_id, epoch, ggn, pop);
