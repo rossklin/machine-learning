@@ -1,5 +1,6 @@
 #include "utility.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <cfloat>
 #include <cmath>
@@ -255,13 +256,13 @@ istream &operator>>(istream &os, vec &x) {
   return os;
 };
 
-ostream &operator<<(ostream &os, const dvalue &x) {
-  return os << x.current << sep << x.last;
-}
+// ostream &operator<<(ostream &os, const dvalue &x) {
+//   return os << x.current << sep << x.last;
+// }
 
-istream &operator>>(istream &is, dvalue &x) {
-  return is >> x.current >> x.last;
-}
+// istream &operator>>(istream &is, dvalue &x) {
+//   return is >> x.current >> x.last;
+// }
 
 double l2norm(vec x) {
   double s = 0;
@@ -321,4 +322,30 @@ double stdev(vec x) {
   double m = mean(x);
   function<double(double)> f = [m](double x) -> double { return pow(x - m, 2); };
   return sqrt(sum(map(f, x)));
+}
+
+dvalue::dvalue() {
+  n = 0;
+}
+
+void dvalue::push(double x) {
+  double gamma = 0.75;
+  double wh = (1 - pow(gamma, n)) / (1 - gamma);
+  last = current;
+  current = x;
+
+  double diff = current - last;
+  sd_ma = (wh * sd_ma + fabs(diff)) / (wh + 1);
+  diff_ma = (wh * diff_ma + diff) / (wh + 1);
+  value_ma = (wh * value_ma + current) / (wh + 1);
+  n++;
+}
+
+string dvalue::serialize(string sep) const {
+  vector<double> vs = {current, last, value_ma, sd_ma, diff_ma, n};
+  return join_string(map<double, string>([](double x) { return to_string(x); }, vs), sep);
+}
+
+void dvalue::deserialize(stringstream &ss) {
+  ss >> current >> last >> value_ma >> sd_ma >> diff_ma >> n;
 }

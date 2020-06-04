@@ -3,6 +3,7 @@
 #include <cassert>
 #include <functional>
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -31,15 +32,6 @@ typedef std::function<agent_ptr()> agent_f;
 struct point {
   double x;
   double y;
-};
-
-struct dvalue {
-  double current;
-  double last;
-  void push(double x) {
-    last = current;
-    current = x;
-  }
 };
 
 template <typename K, typename V>

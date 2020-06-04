@@ -7,6 +7,7 @@
 #include <iterator>
 #include <random>
 #include <set>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -15,6 +16,21 @@
 
 const std::string sep = " ";
 const std::string comma = ",";
+
+struct dvalue {
+  static constexpr double hmax = 10;
+  double current;
+  double last;
+  double diff_ma;
+  double value_ma;
+  double sd_ma;
+  double n;
+
+  dvalue();
+  void push(double x);
+  std::string serialize(std::string sep) const;
+  void deserialize(std::stringstream &ss);
+};
 
 struct MutexType {
   MutexType();
@@ -135,8 +151,8 @@ std::vector<T> vec_replicate(std::function<T()> f, int n) {
   return res;
 }
 
-std::ostream &operator<<(std::ostream &os, const dvalue &x);
-std::istream &operator>>(std::istream &is, dvalue &x);
+// std::ostream &operator<<(std::ostream &os, const dvalue &x);
+// std::istream &operator>>(std::istream &is, dvalue &x);
 
 template <typename T>
 std::ostream &operator<<(std::ostream &os, const std::vector<T> &x) {
