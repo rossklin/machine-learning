@@ -58,6 +58,8 @@ void pure_train(int n) {
 
   string fname = "data/pure-train-run-" + to_string(run_id) + ".csv";
 
+  vector<vector<vector<record>>> training_data(pop.size());
+  int batch_size = 2;
   for (int epoch = 1; true; epoch++) {
     cout << "Pure train: epoch " << epoch << endl;
 
@@ -71,17 +73,35 @@ void pure_train(int n) {
 
       game_ptr g = ggen.team_bots_vs(a);
 
-      auto res = g->play(epoch);
-      a->train(hm_values(res), isam);
+      vector<vector<record>> res = hm_values(g->play(epoch));
+      for (auto buf : res) training_data[i].push_back(buf);
 
-      omp_set_lock(&writelock);
-      ofstream fmeta(fname, ios::app);
-      fmeta << epoch << comma << a->status_report() << comma << g->end_stats() << endl;
-      fmeta.close();
-      omp_unset_lock(&writelock);
+      bool win = g->winner == a->team;
+      bool tie = g->winner == -1;
+
+      a->score_refbot.push(win + 0.5 * tie);
+
+      int clone_id = g->team_clone_ids(a->team).front();
+      a->score_simple.push(g->score_simple(clone_id));
     }
 
     cout << "Completed epoch " << epoch << endl;
+
+    if (epoch % batch_size == 0) {
+      cout << "Training on batch" << endl;
+#pragma omp parallel for
+      for (int i = 0; i < pop.size(); i++) {
+        agent_ptr a = pop[i];
+        a->train(training_data[i], isam);
+
+        omp_set_lock(&writelock);
+        ofstream fmeta(fname, ios::app);
+        fmeta << epoch << comma << a->status_report() << endl;
+        fmeta.close();
+        omp_unset_lock(&writelock);
+      }
+      training_data = vector<vector<vector<record>>>(pop.size());
+    }
   }
 
   omp_destroy_lock(&writelock);
