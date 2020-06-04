@@ -59,7 +59,7 @@ class agent : public std::enable_shared_from_this<agent> {
   // learning system parameters
   double future_discount;
   double w_reg;      // todo: regularization
-  double mem_limit;  // todo: cap nr memories
+  int mem_limit;     // todo: cap nr memories
   double mem_curve;  // todo: length of mem fade curve
   int inspiration_age_limit;
 

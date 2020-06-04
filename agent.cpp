@@ -179,7 +179,7 @@ agent_ptr agent::mate(agent_ptr p) const {
   a->future_discount = join_vals({future_discount, p->future_discount});
   a->w_reg = join_vals({w_reg, p->w_reg});
   a->mem_curve = join_vals({mem_curve, p->mem_curve});
-  a->mem_limit = join_vals({mem_limit, p->mem_limit});
+  a->mem_limit = join_vals({(double)mem_limit, (double)p->mem_limit});
   a->inspiration_age_limit = join_vals({(double)inspiration_age_limit, (double)p->inspiration_age_limit});
   return a->mutate();
 }
