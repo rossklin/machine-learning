@@ -545,9 +545,7 @@ void tree_evaluator::initialize(input_sampler sampler, int cdim, set<int> ireq) 
 }
 
 string tree_evaluator::status_report() const {
-  stringstream ss;
-  ss << root->count_trees() << comma << learning_rate;
-  return ss.str();
+  return to_string(gamma);
 }
 
 set<int> tree_evaluator::list_inputs() const {

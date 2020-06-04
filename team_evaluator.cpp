@@ -150,14 +150,14 @@ void team_evaluator::initialize(input_sampler sampler, int cdim, std::set<int> i
 }
 
 std::string team_evaluator::status_report() const {
-  // string tree_sub = join_string(
-  //     map<evaluator_ptr, string>(
-  //         [](evaluator_ptr e) {
-  //           return e->tag == "tree" ? to_string(static_pointer_cast<tree_evaluator>(e)->gamma) : "NA";
-  //         },
-  //         evals),
-  //     comma);
-  return to_string(complexity()) + comma + to_string(learning_rate) + comma + to_string(mut_tag) + comma + to_string(static_pointer_cast<tree_evaluator>(evals.back())->gamma);
+  stringstream ss;
+
+  ss << complexity() << comma
+     << learning_rate << comma
+     << mut_tag << comma
+     << join_string(map<evaluator_ptr, string>([](evaluator_ptr e) { return e->status_report(); }, evals), comma);
+
+  return ss.str();
 }
 
 evaluator_ptr team_evaluator::clone() const {
