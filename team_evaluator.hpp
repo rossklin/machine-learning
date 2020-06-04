@@ -18,6 +18,7 @@ class team_evaluator : public evaluator {
 
   double evaluate(vec x) override;
   bool update(std::vector<record> records, agent_ptr a, double &rel_change) override;
+  void reset_memory_weights(double a) override;
   void prune(double limit = 0) override;
   evaluator_ptr mate(evaluator_ptr partner) const override;
   evaluator_ptr mutate(dist_category dc) const override;

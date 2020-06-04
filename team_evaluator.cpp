@@ -22,6 +22,10 @@ void team_evaluator::update_stable() {
   for (auto e : evals) stable = stable && e->stable;
 }
 
+void team_evaluator::reset_memory_weights(double a) {
+  for (auto e : evals) e->reset_memory_weights(a);
+}
+
 void team_evaluator::set_learning_rate(double r) {
   learning_rate = r;
   for (auto e : evals) e->set_learning_rate(r);
