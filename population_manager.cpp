@@ -1,5 +1,6 @@
 #include "population_manager.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <iostream>
@@ -17,6 +18,7 @@ using namespace std;
 population_manager::population_manager(int popsize, agent_f gen, float plim) : popsize(popsize), gen(gen), preplim(plim) {
   simple_score_limit = 0.2;
   assert(popsize >= 8);
+  refbot = 0;
 }
 
 vector<agent_ptr> load_pop(stringstream &ss) {
@@ -108,20 +110,49 @@ double mate_score(agent_ptr parent1, agent_ptr x) {
   double different_ancestors = fmin(5, set_symdiff(x->ancestors, parent1->ancestors).size());
   double common_parents = set_intersect(x->parents, parent1->parents).size();
 
-  return x->score_tmt + 3 * x->score_refbot.current + 5 * x->score_retiree.current + different_ancestors - common_parents - cpenalty;
+  return x->score_tmt.value_ma + 3 * x->score_refbot.value_ma + different_ancestors - common_parents - cpenalty;
 };
 
 void population_manager::sortpop() {
-  sort(pop.begin(), pop.end(), [](agent_ptr a, agent_ptr b) -> bool { return a->score_tmt > b->score_tmt; });
+  sort(pop.begin(), pop.end(), [](agent_ptr a, agent_ptr b) -> bool { return a->score_tmt.value_ma > b->score_tmt.value_ma; });
   for (int i = 0; i < pop.size(); i++) pop[i]->rank = i + 1;
 }
 
 void population_manager::evolve(game_generator_ptr gg) {
   check_gg(gg);
 
-  // pop management parameters
-  int protected_age = 5;
-  int protected_mut_age = 3;
+  // calculate quantile of refbot score and update the refbot if necessary
+  sort(pop.begin(), pop.end(), [](agent_ptr a, agent_ptr b) -> bool { return a->score_refbot.value_ma > b->score_refbot.value_ma; });
+  double score_refbot_q90 = pop[0.1 * pop.size()]->score_refbot.value_ma;
+
+  if (retirement.size() > 0 && score_refbot_q90 > 0.95) {
+    // time to switch to a stronger refbot
+    int idx = min<int>(9, retirement.size() - 1);
+    if (refbot) {
+      // guarantee selecting a newer refbot than the last one
+      for (int i = 0; i <= idx; i++) {
+        if (retirement[i]->id == refbot->id) {
+          idx = i - 1;
+        }
+      }
+    }
+
+    if (idx >= 0) {
+      refbot = retirement[idx];
+
+      for (auto a : pop) {
+        // Restart statistics for score_refbot
+        a->score_refbot = dvalue();
+
+        // Update memory weights:
+        // since current top players win consistently against old refbot,
+        // and are expeccted to win 50% against new refbot,
+        // we heuristically expect all agents to win half as often against the new refbot,
+        // therefore old memory weights should be halved to compare fairly to new memories.
+        a->eval->reset_memory_weights(0.5);
+      }
+    }
+  }
 
   // remove unstable players
   for (int i = 0; i < pop.size(); i++) {
@@ -129,12 +160,6 @@ void population_manager::evolve(game_generator_ptr gg) {
       cout << "PM: erasing unstable player " << pop[i]->id << endl;
       pop.erase(pop.begin() + i--);
     }
-  }
-
-  if (pop.size() < 2) {
-    // can't evolve with less than two agents
-    cout << "PM: not enough agents to evolve!" << endl;
-    return;
   }
 
   // require at least 2 parents
@@ -147,95 +172,59 @@ void population_manager::evolve(game_generator_ptr gg) {
   int lim_idx = 0.8 * pop.size();
   simple_score_limit = 0.1 * pop[lim_idx]->score_simple.current + 0.9 * simple_score_limit;
 
-  auto cond_drop = [](agent_ptr a) {
-    bool has_data = a->tstats.n > 100;
-    bool slow_optim = a->tstats.rate_successfull < 0.5;
-    bool slow_update = a->tstats.output_change < 1e-5;
-    bool slow = slow_optim || slow_update;
-    bool stalled = a->tstats.output_change < 1e-6 || a->tstats.rate_successfull < 0.2;
-    bool old = a->age > 1000;
-    bool ancient = a->age > 5000;
+  // determine which agents to keep
+  auto agent_evaluator = [](agent_ptr a) -> int {
+    if (a->tstats.n < 10) return 1;  // All agents must have played at least one tournament before being evaluated
 
-    if (ancient || (has_data && (stalled || (old && slow)))) {
-      cout << "Dropping agent with stats: " << a->tstats.rate_successfull << ", " << a->age << ", " << a->tstats.output_change << endl;
-      return true;
-    } else {
-      return false;
-    }
+    int stalled = a->tstats.output_change < 1e-6 || a->tstats.rate_successfull < 0.2;
+    int ancient = a->age > 500;
+
+    int improve_tmt = a->score_tmt.diff_ma > 0.01 || a->rank < a->last_rank;
+    int improve_perf = a->score_refbot.diff_ma > 0.01;
+    int improve_speed = a->score_simple.diff_ma > 0.01;
+
+    return improve_perf + improve_speed + improve_tmt - stalled - ancient;
   };
 
   vector<agent_ptr> player_buf;
   int n_retire = 0;
-  for (int i = 0; i < nkeep; i++) {
+  int n_drop = 0;
+  for (int i = 0; i < pop.size(); i++) {
     agent_ptr a = pop[i];
-    if (!cond_drop(a)) {
+    if (agent_evaluator(a) > 0) {
       player_buf.push_back(a);
-    } else if (i < 3) {
+    } else if (i < nkeep) {
       n_retire++;
       retirement.insert(retirement.begin(), a);
+    } else {
+      n_drop++;
     }
   }
   if (retirement.size() > 100) retirement.resize(100);
-  int n_drop = nkeep - player_buf.size();
   int result_keep = player_buf.size();
-
-  // protect children and players who's scores are still increasing
-  int n_protprog = 0;
-  // int n_protchild = 0;
-  // int n_protmut = 0;
-  for (int i = nkeep; i < pop.size(); i++) {
-    agent_ptr a = pop[i];
-
-    // drop agent if it is no longer successfully updating
-    if (cond_drop(a)) {
-      n_drop++;
-      continue;
-    }
-
-    // update protection after adding agent so scores are calculated
-    // before the agent is evaluated
-    if (a->rank < a->last_rank - 1) {
-      a->was_protected = true;
-      player_buf.push_back(a);
-      n_protprog++;
-    }
-  }
-
+  int max_idx = min(nkeep, result_keep);
   int free_spots = popsize - player_buf.size();
 
-  // trial between population and retirement
-  int n_trial = 10;
-  int n_win = 0;
-  float qtrial = 0.2;
-  if (retirement.size() && player_buf.size()) {
-    cout << "Playing retirement trials" << endl;
-    for (int i = 0; i < n_trial; i++) {
-      agent_ptr a = player_buf.front();
-      agent_ptr b = retirement.back();
-      a->set_exploration_rate(0.05);
-      b->set_exploration_rate(0.05);
-      game_ptr g = gg->generate_starting_state(gg->make_teams({a, b}));
-      g->play(1);
-      n_win += g->winner == a->team;
-    }
-
-    qtrial = (n_win + 2 - (retirement.size() > 1)) / (float)n_trial;
-    cout << "Qtrial: " << qtrial << endl;
+  if (player_buf.empty() || pop.size() < 2) {
+    // can't evolve with less than two agents
+    cout << "PM: not enough agents to evolve!" << endl;
+    pop = player_buf;
+    return;
   }
 
-  cout << "PM: keeping " << result_keep << ", retiring " << n_retire << ", dropping " << (n_drop - n_retire) << " , protected " << n_protprog << " progressors" << endl;
+  cout << "PM: keeping " << result_keep << ", retiring " << n_retire << ", dropping " << n_drop << endl;
   cout << "Retiree count: " << retirement.size() << endl;
 
-  auto mate_generator = [this, nkeep, qtrial]() -> agent_ptr {
+  auto mate_generator = [this, max_idx]() -> agent_ptr {
     agent_ptr parent1;
     vector<agent_ptr> buf = pop;
 
-    if (retirement.size() && u01() > qtrial) {
+    if (retirement.size() && u01() > 0.5) {
       // use a retired agent as parent
       parent1 = sample_one(retirement);
     } else {
       // use a top agent from population as parent
-      int idx1 = rand_int(0, nkeep - 1);
+      int idx1 = rand_int(0, max_idx - 1);
       parent1 = pop[idx1];
       buf.erase(buf.begin() + idx1);
     }
@@ -276,14 +265,6 @@ void population_manager::evolve(game_generator_ptr gg) {
   buf = gg->prepare_n(mutate_generator, n_mutate, fmax(preplim, simple_score_limit));
   player_buf.insert(player_buf.end(), buf.begin(), buf.end());
   pop = player_buf;
-
-  // // post processing
-  // for (auto x : pop) {
-  //   x->score_tmt *= 0.999;
-
-  //   // Only allow pruning when creating a new agent since it will screw with memory index mapping
-  //   // x->eval->prune();
-  // }
 
   // sort population again
   sortpop();

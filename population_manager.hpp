@@ -14,6 +14,7 @@ class population_manager {
   agent_f gen;
   std::vector<agent_ptr> pop;
   std::vector<agent_ptr> retirement;
+  agent_ptr refbot;
 
   population_manager(int popsize, agent_f gen, float plim);
   std::string pop_stats(std::string row_prefix) const;
