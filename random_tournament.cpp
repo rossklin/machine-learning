@@ -25,9 +25,11 @@ void random_tournament::run(population_manager_ptr pm, game_generator_ptr gg, in
 
   pm->check_gg(gg);
 
+  for (auto a : pm->pop) a->score_tmt_buf = a->score_tmt.current;
+  int batch_size = 10;
   for (int round = 0; round < game_rounds; round++) {
     // play a number of games, reusing players as needed
-    cout << "Arena: epoch " << epoch << ": RT games round " << round << "\r";
+    cout << "Epoch " << epoch << ": RT games round " << round << " of " << game_rounds << "     \r";
 
     bool practice = round < practice_rounds;
     float use_exrate = practice ? 0.5 : 0.05;
@@ -71,11 +73,11 @@ void random_tournament::run(population_manager_ptr pm, game_generator_ptr gg, in
       double score_defeated = 0;
       double score_winner = 0;
       for (auto x : g->original_agents) {
-        if (x->team != g->winner) score_defeated += x->score_tmt;
+        if (x->team != g->winner) score_defeated += x->score_tmt_buf;
       }
 
       for (auto x : g->original_agents) {
-        if (x->team == g->winner) score_winner += x->score_tmt;
+        if (x->team == g->winner) score_winner += x->score_tmt_buf;
       }
 
       score_defeated /= ppt * (tpg - 1);
@@ -93,21 +95,29 @@ void random_tournament::run(population_manager_ptr pm, game_generator_ptr gg, in
       }
 
       // if agent lost, also add training data for opponent clones
-      if (!win) {
+      if (p->age < p->inspiration_age_limit && !win) {
         for (auto pid : g->team_clone_ids(g->winner)) {
           training_data[i].push_back(g->result_buf[pid]);
         }
       }
 
-      if (!practice) p->score_tmt += diff;
+      if (!practice) p->score_tmt_buf += diff;
+    }
+
+    // Run training batch
+    if (round % batch_size == 0 || round == game_rounds - 1) {
+      cout << endl
+           << "RT: training batch" << endl;
+#pragma omp parallel for
+      for (int i = 0; i < pm->pop.size(); i++) {
+        pm->pop[i]->train(training_data[i], isam);
+      }
+      training_data = vector<vector<vector<record>>>(pm->pop.size());
     }
   }
 
-  cout << endl
-       << "RT start training" << endl;
+  for (auto a : pm->pop) a->score_tmt.push(a->score_tmt_buf);
+  pm->sortpop();
 
-#pragma omp parallel for
-  for (int i = 0; i < pm->pop.size(); i++) pm->pop[i]->train(training_data[i], isam);
-
-  cout << "RT complete" << endl;
+  cout << "RT: complete" << endl;
 }
