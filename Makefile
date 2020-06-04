@@ -30,7 +30,7 @@ $(DBG_DIR)/pure_train : $(DBG_OBJ) pure_train.cpp
 	# Create build directories - same structure as sources.
 	mkdir -p $(@D)
 	# Just link all the object files.
-	$(CC) $(CPPFLAGS) -ggdb $^ -o $@
+	$(CC) -DDEBUG $(CPPFLAGS) -ggdb $^ -o $@
 
 run_arena : $(BUILD_DIR)/run_arena $(DBG_DIR)/run_arena
 
@@ -44,7 +44,7 @@ $(DBG_DIR)/run_arena : $(DBG_OBJ) run_arena.cpp
 	# Create build directories - same structure as sources.
 	mkdir -p $(@D)
 	# Just link all the object files.
-	$(CC) $(CPPFLAGS) -ggdb $^ -o $@
+	$(CC) -DDEBUG $(CPPFLAGS) -ggdb $^ -o $@
 
 -include $(DEP)
 
@@ -61,7 +61,7 @@ $(DBG_DIR)/%.o : %.cpp
 	mkdir -p $(@D)
 	# The -MMD flags additionaly creates a .d file with
 	# the same name as the .o file.
-	$(CC) $(CPPFLAGS) -ggdb -MMD -c $< -o $@
+	$(CC) -DDEBUG $(CPPFLAGS) -ggdb -MMD -c $< -o $@
 
 .PHONY : clean
 
