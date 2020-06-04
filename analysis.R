@@ -3,64 +3,35 @@ library(ggplot2)
 library(tidyr)
 library(gridExtra)
 
-## sample 1, 2, 9:
-## step = 1e-9
-## gradient ?
-## num dy/dx -1e20
-## opt exits no iteration: d = 0
-## different outcoes
+## Column defs
 
-## sample 3, 4, 8:
-## step 1e-8
-## gradient:       0         0      2796   3072469     35137 117547022
-## opt: overshoots local min at 7e-9, one step 1e-9 -> 1e-8, exits: d < 1e-8
-## different outcomes
+dval.cols <- c("current", "last", "value_ma", "sd_ma", "diff_ma", "n")
+team.evaluator.cols <- c("treesize", "lrate", "mut_tag", "gamma0", "gamma1")
 
-## sample 5, 6, 7
-## step: -1e-6 (negative)
-## gradient:       0         0     20284   1385766    100761 105622920
-## opt: steps backwards, worsens objective
-
-step * 100
-ggplot(data.frame(x = step * seq_along(landscape), y = landscape), aes(x = x, y = y)) + geom_path() + geom_vline(xintercept = 100 * step) + geom_vline(xintercept = 1e-9)
-
-ggplot(data.frame(x = step * (1:100), y = head(landscape, 100)), aes(x = x, y = y)) + geom_path()
-
-landscape[1]
-landscape[2]
-landscape[101]
-
-optpath
-ggplot(data.frame(x = seq_along(optpath$ys),  y = optpath$ys), aes(x = x, y = y)) + geom_path()
-
-ggplot(data.frame(x = gradient), aes(x = x)) + geom_density()
-summary(abs(gradient))
-
-
-## analysis
-
-team.evaluator.cols <- c("treesize", "lrate", "gamma0", "gamma1")
-
-agent.cols <- c(
-    "pid",
-    "phash",
-    "label",
-    "age",
-    "future.discount",
-    "score",
-    "nancestors",
-    "nparents",
-
-    "training.rel.change.mean",
-    ## "training.rel.change.max",
-    "training.rel.change.output",
-    ## "training.rate.zero",
-    "training.rate.successfull",
-    ## "training.rate.accurate",
-    ## "training.rate.correct.sign",
-    "training.rate.optim.failed",
-
-    team.evaluator.cols
+agent.cols <- c("id",
+"parent_hash",
+"class_id",
+"original_id",
+"label",
+paste("score_tmt", dval.cols, sep="."),
+paste("score_simple", dval.cols, sep="."),
+paste("score_refbot", dval.cols, sep="."),
+"rank",
+"last_rank",
+"age",
+"mut_age",
+"future_discount",
+"w_reg",
+"mem_limit",
+"mem_curve",
+"inspiration_age_limit",
+"tstats.rel_change_mean",
+"tstats.output_change",
+"tstats.rate_successfull",
+"tstats.rate_optim_failed",
+"parents.size",
+"ancestors.size",
+team.evaluator.cols
 )
 
 pod.game.cols <- c("did.finish", "relative", "speed")
@@ -70,28 +41,36 @@ pod.game.cols <- c("did.finish", "relative", "speed")
 ## cases
 ## extreme gradient: 1
 
-run.id <- "2289842298"
+run.id <- "4263312114"
 
-df.pt <- setNames(read.csv(paste0("data/pure-train-run-", run.id, ".csv"), header=F, stringsAsFactors=F), c("epoch", agent.cols, pod.game.cols))
+df.pt <- setNames(read.csv(paste0("data/pure-train-run-", run.id, ".csv"), header=F, stringsAsFactors=F), c("epoch", agent.cols))
 
-top.pids <- (df.pt %>%
-    select(epoch, pid, relative, speed) %>%
-    filter(epoch > 3) %>%
-    group_by(pid) %>%
-    mutate(rs = weighted.mean(relative, epoch)) %>%
-    group_by %>%
-    arrange(-rs) %>%
-    filter(pid %in% head(unique(pid), 5)))$pid %>% unique
+top.pids <- (
+    df.pt %>%
+    filter(epoch == max(epoch)) %>%
+    arrange(-score_refbot.value_ma) %>%
+    head(5)
+)$id
 
 df.pt %>%
-    ## filter(did.finish > 0) %>%
-    select(epoch, pid, relative, speed, did.finish) %>%
+    filter(id %in% top.pids) %>%
+    select(epoch, pid = id, speed = score_simple.current, ma = score_simple.value_ma) %>%
+    pivot_longer(-c(epoch, pid)) %>%
+    ggplot(aes(x = epoch, y = value, group = name, color = name)) +
+    geom_smooth(se=F) +
+    geom_point() + 
+    geom_hline(yintercept = 0:1) +
+    facet_grid(pid~.)
+    
+
+df.pt %>%
+    select(epoch, pid = id, winrate = score_refbot.current, speed = score_simple.current) %>%
     filter(pid %in% top.pids) %>%
-    mutate(speed = speed / 250, win = relative > 1) %>%
-    pivot_longer(-c(epoch, pid, did.finish)) %>%
+    mutate(speed = speed / 250) %>%
+    pivot_longer(-c(epoch, pid)) %>%
     ggplot(aes(x = epoch, y = value)) +
     geom_smooth() +
-    geom_point(aes(color=as.factor(did.finish))) + 
+    geom_point() + 
     geom_hline(yintercept = 0:1) +
     coord_cartesian(ylim = c(-0.5, 1.5)) +
     facet_grid(pid~name)
