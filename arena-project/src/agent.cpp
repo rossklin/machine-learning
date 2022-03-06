@@ -81,8 +81,6 @@ agent::agent() {
   was_protected = false;
   age = 0;
   mut_age = 0;
-  mem_limit = fabs(rnorm(1e2, 5e1));
-  mem_curve = fabs(rnorm(2e1, 1e1));
   inspiration_age_limit = fabs(rnorm(1e1, 2));
   future_discount = pow(10, -u01(1, 2));
   w_reg = pow(10, -u01(3, 5));
@@ -186,8 +184,6 @@ agent_ptr agent::mate(agent_ptr p) const {
   a->original_id = a->id;
   a->future_discount = join_vals({future_discount, p->future_discount});
   a->w_reg = join_vals({w_reg, p->w_reg});
-  a->mem_curve = join_vals({mem_curve, p->mem_curve});
-  a->mem_limit = join_vals({(double)mem_limit, (double)p->mem_limit});
   a->inspiration_age_limit = join_vals({(double)inspiration_age_limit, (double)p->inspiration_age_limit});
   a->learning_rate = join_vals({(double)learning_rate, (double)p->learning_rate});
   a->step_limit = join_vals({(double)step_limit, (double)p->step_limit});
@@ -207,8 +203,6 @@ agent_ptr agent::mutate() const {
   // mutate conf params
   a->future_discount = mutate_val(a->future_discount);
   a->w_reg = mutate_val(a->w_reg);
-  a->mem_curve = mutate_val(a->mem_curve);
-  a->mem_limit = mutate_val(a->mem_limit);
   a->inspiration_age_limit = mutate_val(a->inspiration_age_limit);
   a->learning_rate = mutate_val(a->learning_rate);
   a->step_limit = mutate_val(a->step_limit);
@@ -243,9 +237,7 @@ std::string agent::serialize() const {
 
      // learning system parameters
      << future_discount << sep
-     << w_reg << sep      // todo: regularization
-     << mem_limit << sep  // todo: cap nr memories
-     << mem_curve << sep  // todo: length of mem fade curve
+     << w_reg << sep  // todo: regularization
      << inspiration_age_limit << sep
 
      << tstats << sep
@@ -271,7 +263,7 @@ void agent::deserialize(std::stringstream &ss) {
   ss >> rank >> last_rank >> age >> mut_age
 
       // learning system parameters
-      >> future_discount >> w_reg >> mem_limit >> mem_curve >> inspiration_age_limit
+      >> future_discount >> w_reg >> inspiration_age_limit
 
       >> tstats >> parents >> ancestors;
 
@@ -331,9 +323,7 @@ string agent::status_report() const {
 
      // learning system parameters
      << future_discount << comma
-     << w_reg << comma      // todo: regularization
-     << mem_limit << comma  // todo: cap nr memories
-     << mem_curve << comma  // todo: length of mem fade curve
+     << w_reg << comma  // todo: regularization
      << inspiration_age_limit << comma
      << learning_rate << comma
      << step_limit << comma

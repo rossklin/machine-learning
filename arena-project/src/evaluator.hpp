@@ -12,9 +12,6 @@ class evaluator {
  protected:
   int dim;
 
- protected:
-  bool mem_update(std::vector<record> records, agent_ptr a, double &rel_change);
-
  public:
   enum dist_category {
     MUT_SMALL,

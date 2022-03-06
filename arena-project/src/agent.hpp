@@ -40,6 +40,7 @@ class agent : public std::enable_shared_from_this<agent> {
   std::string label;
 
   // buffer variables
+  // TODO: move to game specific agent data
   int team;
   int team_index;
   int assigned_game;
@@ -58,9 +59,9 @@ class agent : public std::enable_shared_from_this<agent> {
 
   // learning system parameters
   double future_discount;
-  double w_reg;      // todo: regularization
-  int mem_limit;     // todo: cap nr memories
-  double mem_curve;  // todo: length of mem fade curve
+  double w_reg;  // todo: regularization
+  // int mem_limit;     // todo: cap nr memories
+  // double mem_curve;  // todo: length of mem fade curve
   int inspiration_age_limit;
   double learning_rate;
   double step_limit;
