@@ -36,22 +36,26 @@ string join_string(const vector<string> vec, string delim) {
   return ss.str();
 }
 
-vec voptim(vec x, function<double(vec)> fopt, function<vec(vec)> fgrad) {
+optim_result<double> voptim(vec x, function<double(vec)> fopt, function<vec(vec)> fgrad) {
+  vec x0 = x;
   double xlim = 2e-2 * l2norm(x);
   double border = 1e3 * l2norm(x);
   vec d = fgrad(x);
   int max_its = 40;
   double y = fopt(x);
+  double y0 = y;
   double y_last = 2 * y;
-  double rel_lim = 1e-2;
+  double rel_lim = 5e-3;
   int i;
   double step_lim = 0.1;
   int n = x.size();
   // double h = 1e-6 * l2norm(x);
   vec x_last = x;
+  vec x_best = x;
+  double y_best = y;
 
   vec ys = {y};
-  for (i = 0; i < max_its && l2norm(d) > xlim && l2norm(x) < border && (y_last - y) / y > rel_lim; i++) {
+  for (i = 0; i < max_its && l2norm(d) > xlim && l2norm(x) < border && fabs(y_last - y) / y > rel_lim; i++) {
     d = fgrad(x);
 
     if (l2norm(d) == 0 || y == 0) break;
@@ -89,11 +93,26 @@ vec voptim(vec x, function<double(vec)> fopt, function<vec(vec)> fgrad) {
     y_last = y;
     y = fopt(x);
     ys.push_back(y);
+
+    if (y < y_best) {
+      y_best = y;
+      x_best = x;
+    }
   }
 
   // cout << ys << endl;
 
-  return y < y_last ? x : x_last;
+  optim_result<double> res;
+  res.opt = x_best;
+  res.obj = y_best;
+  res.success = y_best < y0;   // an improvement was made
+  res.overshoot = y_best < y;  // the last value was not the best
+  res.its = i;
+  res.dx = l2norm(x - x_last) / l2norm(x0);  // approximate uncertainty in x domain
+  res.dy = fabs(y - y_last) / y0;            // approximate uncertainty in y domain
+  res.improvement = (y0 - y_best) / y0;
+
+  return res;
 }
 
 // minimize f > 0
@@ -192,6 +211,17 @@ double time_discount(double x, double t) {
   return x * exp(-t / 4);
 }
 
+double mem_weight(double ss, double cs) {
+  // count small improvements in ss from -1 to 0
+  // count larger improvements in ss from 0 to 1
+  // cs is already normalized
+  double term1 = 1e-2 * psigmoid(ss, 0.3);      // from -1
+  double term2 = 1e-1 * psigmoid(ss - 1, 0.3);  // from 0
+  double term3 = cs;
+
+  return fmax(sum({term1, term2, term3}), 1e-3);
+}
+
 mt19937 &get_random_engine() {
   // static default_random_engine random_generator(time(NULL));
   static random_device rd;   //Will be used to obtain a seed for the random number engine
@@ -228,8 +258,14 @@ double signum(double x) {
   return (x > 0) - (x < 0);
 }
 
+// sigmoid on (-1,1)
 double sigmoid(double x, double h) {
   return 2 / (1 + exp(-x / h)) - 1;
+}
+
+// sigmoid on (0,1)
+double psigmoid(double x, double h) {
+  return (1 + sigmoid(x, h)) / 2;
 }
 
 // vector arithmetics
@@ -326,18 +362,27 @@ double stdev(vec x) {
 
 dvalue::dvalue() {
   n = 0;
+  last = 0;
+  current = 0;
+  sd_ma = 0;
+  diff_ma = 0;
+  value_ma = 0;
 }
 
 void dvalue::push(double x) {
-  double gamma = 0.75;
-  double wh = (1 - pow(gamma, n)) / (1 - gamma);
+  double gamma = 0.9;
+  double wh = (1 - pow(gamma, n + 1)) / (1 - gamma) - 1;  // wh = gamma + gamma² + ... + gamma^n
   last = current;
   current = x;
 
-  double diff = current - last;
-  sd_ma = (wh * sd_ma + fabs(diff)) / (wh + 1);
-  diff_ma = (wh * diff_ma + diff) / (wh + 1);
   value_ma = (wh * value_ma + current) / (wh + 1);
+
+  if (n > 0) {
+    double diff = current - last;
+    sd_ma = (wh * sd_ma + fabs(current - value_ma)) / (wh + 1);
+    diff_ma = (wh * diff_ma + diff) / (wh + 1);
+  }
+
   n++;
 }
 

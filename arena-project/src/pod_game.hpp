@@ -30,7 +30,6 @@ constexpr double pod_mass = 1;
 
 class pod_game : public game, public std::enable_shared_from_this<pod_game> {
  protected:
-  hm<int, double> htable();
   hm<int, double> ttable();
   double pod_distance_travelled(int pid);
 
@@ -55,5 +54,6 @@ class pod_game : public game, public std::enable_shared_from_this<pod_game> {
   std::vector<choice_ptr> generate_choices(agent_ptr a) override;
   vec vectorize_choice(choice_ptr c, int pid) const override;
   vec vectorize_state(int pid) const override;
+  choice_ptr unvectorize_choice(vec x) const override;
   double winner_reward(int epoch) override;
 };

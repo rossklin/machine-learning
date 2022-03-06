@@ -76,6 +76,11 @@
     "future": "cpp",
     "mutex": "cpp",
     "variant": "cpp",
-    "bit": "cpp"
-  }
+    "bit": "cpp",
+    "compare": "cpp",
+    "concepts": "cpp",
+    "ranges": "cpp",
+    "stop_token": "cpp"
+  },
+  "editor.formatOnSave": true
 }

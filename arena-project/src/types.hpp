@@ -26,8 +26,6 @@ typedef std::shared_ptr<population_manager> population_manager_ptr;
 typedef std::shared_ptr<tournament> tournament_ptr;
 
 typedef std::vector<double> vec;
-typedef std::function<vec()> input_sampler;
-typedef std::function<agent_ptr()> agent_f;
 
 struct point {
   double x;
@@ -37,11 +35,17 @@ struct point {
 template <typename K, typename V>
 using hm = std::unordered_map<K, V>;
 
-struct record {
+struct option {
+  vec choice;
   vec input;
   double output;
+  int original_idx;
+};
+struct record {
+  vec state;
+  std::vector<option> opts;
+  int selected_option;
   double reward;
-  double reward_simple;
   double sum_future_rewards;
 };
 
@@ -59,3 +63,6 @@ struct t_binary {
   std::function<double(double, double)> dfdx1;
   std::function<double(double, double)> dfdx2;
 };
+
+typedef std::function<record()> input_sampler;
+typedef std::function<agent_ptr()> agent_f;

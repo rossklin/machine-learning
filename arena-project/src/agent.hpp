@@ -62,8 +62,12 @@ class agent : public std::enable_shared_from_this<agent> {
   int mem_limit;     // todo: cap nr memories
   double mem_curve;  // todo: length of mem fade curve
   int inspiration_age_limit;
+  double learning_rate;
+  double step_limit;
+  bool use_f0c;
 
   training_stats tstats;
+  optim_result<dvalue> optim_stats;
 
   std::set<int> parents;
   std::set<int> ancestors;
@@ -83,7 +87,7 @@ class agent : public std::enable_shared_from_this<agent> {
   virtual void initialize_from_input(input_sampler s, int choice_dim, std::set<int> ireq);
 
   // analysis
-  virtual choice_ptr select_choice(game_ptr g);
+  virtual record select_choice(game_ptr g);
   virtual double evaluate_choice(vec x) const;
   virtual bool evaluator_stability() const;
   virtual std::string status_report() const;

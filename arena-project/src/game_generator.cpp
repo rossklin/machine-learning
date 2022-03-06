@@ -54,23 +54,30 @@ game_ptr game_generator::team_bots_vs(agent_ptr a) const {
 int game_generator::choice_dim() const {
   game_ptr g = team_bots_vs(refbot_generator());
   agent_ptr p = g->players.begin()->second;
-  choice_ptr c = p->select_choice(g);
-  vec input = g->vectorize_input(c, p->id);
-  return input.size();
+  record r = p->select_choice(g);
+  return r.opts[0].input.size();
 }
 
-function<vec()> game_generator::generate_input_sampler() const {
-  cout << "Generate input sampler: start" << endl;
-  game_ptr g = team_bots_vs(refbot_generator());
-  cout << "Generate input sampler: play sample game" << endl;
-  auto buf = g->play(0);
-  cout << "Generate input sampler: complete" << endl;
+// input sampler based on n games
+input_sampler game_generator::generate_input_sampler(int n) const {
+  cout << "Generating input sampler..." << endl;
+  vector<game_result> gs = vec_replicate<game_result>(
+      [this]() {
+        game_ptr g = team_bots_vs(refbot_generator());
+        auto r = g->play(0);
+        cout << "Refbot speed: " << g->score_simple(g->team_clone_ids(0).front()) << endl;
+        return r;
+      },
+      n);
 
-  return [buf]() -> vec {
-    vector<int> keys = hm_keys(buf);
-    int pid = sample_one(keys);
-    vector<record> recs = buf.at(pid);
-    return sample_one(recs).input;
+  cout << "Compiling..." << endl;
+  vector<record> buf;
+  for (auto g : gs) {
+    for (auto res : g) buf = vec_append(buf, res.second);
+  }
+
+  return (input_sampler)[buf]()->record {
+    return sample_one(buf);
   };
 }
 

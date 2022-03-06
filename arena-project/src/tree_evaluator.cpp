@@ -31,6 +31,13 @@ enum binary_ops {
 
 vector<t_unary> unary_op;
 vector<t_binary> binary_op;
+vector<string> unary_op_names = {
+    "sin",
+    "cos",
+    "atan",
+    "sigmoid",
+    "abs"};
+vector<string> binary_op_names = {"kernel", "product"};
 
 void init_ops() {
   static bool init = false;
@@ -308,7 +315,14 @@ void tree_evaluator::tree::initialize(vector<int> inputs) {
     } else if (u01() < 0.6) {
       // unary
       class_id = UNARY_TREE;
-      fname = rand_int(0, UNARY_NUM - 1);
+
+      if (u01() < 0.33) {
+        // trig function
+        fname = sample_one<int>({UNARY_SIN, UNARY_COS, UNARY_ATAN});
+      } else {
+        fname = sample_one<int>({UNARY_SIGMOID, UNARY_ABS});
+      }
+
       subtree.resize(1);
     } else {
       // binary
@@ -363,14 +377,13 @@ void tree_evaluator::tree::emplace_subtree(tree::ptr x, double p_put) {
 }
 
 // must run evaluate first to set resbuf
-int tree_evaluator::tree::calculate_dw(vec &dgdw, int offset, double delta, double alpha, double gamma) {
-  double dydw;
+int tree_evaluator::tree::calculate_dw(vec &dydw, int offset, double alpha) {
   if (w == 0) {
-    dydw = 0;  // once a weight hits zero, leave it there for later pruning
+    dydw[offset] = 0;  // once a weight hits zero, leave it there for later pruning
   } else {
-    dydw = alpha * resbuf / w;
+    dydw[offset] = alpha * resbuf / w;
   }
-  dgdw[offset] = -2 * delta * dydw - gamma * signum(w);
+  // dgdw[offset] = -2 * delta * dydw;
   offset++;
 
   if (class_id == BINARY_TREE) {
@@ -378,15 +391,15 @@ int tree_evaluator::tree::calculate_dw(vec &dgdw, int offset, double delta, doub
     double y2 = subtree[1]->resbuf;
     double left_deriv = binary_op[fname].dfdx1(y1, y2);
     double right_deriv = binary_op[fname].dfdx2(y1, y2);
-    offset = subtree[0]->calculate_dw(dgdw, offset, delta, w * left_deriv * alpha, gamma);
-    offset = subtree[1]->calculate_dw(dgdw, offset, delta, w * left_deriv * alpha, gamma);
+    offset = subtree[0]->calculate_dw(dydw, offset, w * left_deriv * alpha);
+    offset = subtree[1]->calculate_dw(dydw, offset, w * right_deriv * alpha);
   } else if (class_id == UNARY_TREE) {
     double y = subtree[0]->resbuf;
     double deriv = unary_op[fname].fprime(y);
-    offset = subtree[0]->calculate_dw(dgdw, offset, delta, w * deriv * alpha, gamma);
+    offset = subtree[0]->calculate_dw(dydw, offset, w * deriv * alpha);
   } else if (class_id == WEIGHT_TREE) {
     for (auto a : subtree) {
-      offset = a->calculate_dw(dgdw, offset, delta, w * alpha, gamma);
+      offset = a->calculate_dw(dydw, offset, w * alpha);
     }
   }
 
@@ -403,6 +416,37 @@ set<int> tree_evaluator::tree::list_inputs() const {
   } else {
     return {};
   }
+}
+
+string tree_evaluator::tree::printout(int indent) const {
+  stringstream ss;
+  string ind;
+  for (int i = 0; i < indent; i++) ind += "  ";
+
+  ss << w << " * {";
+
+  if (class_id == INPUT_TREE) {
+    ss << "I[" << input_index << "]";
+  } else if (class_id == CONSTANT_TREE) {
+    ss << (w * const_value);
+  } else if (class_id == WEIGHT_TREE) {
+    ss << "sum (" << endl;
+    for (auto t : subtree) ss << ind << t->printout(indent + 1) << "," << endl;
+    ss << ind << ")";
+  } else if (class_id == UNARY_TREE) {
+    ss << unary_op_names[fname] << "(" << endl
+       << ind << subtree[0]->printout(indent + 1) << endl
+       << ind << ")";
+  } else if (class_id == BINARY_TREE) {
+    ss << binary_op_names[fname] << "(" << endl
+       << ind << subtree[0]->printout(indent + 1) << "," << endl
+       << ind << subtree[1]->printout(indent + 1) << endl
+       << ind << ")";
+  }
+
+  ss << "}";
+
+  return ss.str();
 }
 
 void tree_evaluator::tree::add_inputs(vector<int> inputs) {
@@ -451,12 +495,19 @@ vec tree_evaluator::tree::get_weights() const {
   return res;
 }
 
-vec tree_evaluator::gradient(vec input, double target, double w_reg) const {
-  vec x = root->get_weights();
+vec tree_evaluator::gradient(vec input, double target) const {
   double output = root->evaluate(input);
   double delta = target - output;
-  root->calculate_dw(x, 0, delta, 1, w_reg);
-  return x;
+  vec dydw = root->get_weights();
+  int offset = root->calculate_dw(dydw, 0, 1);
+
+  assert(offset == dydw.size());
+
+  // G = (t-y)²
+  // dG/dw = -2 delta dy/dw
+  vec dgdw = -2 * delta * dydw;
+
+  return dgdw;
 }
 
 evaluator_ptr tree_evaluator::clone() const {
@@ -476,7 +527,6 @@ void tree_evaluator::prune(double l) {
 evaluator_ptr tree_evaluator::mate(evaluator_ptr partner_buf) const {
   shared_ptr<tree_evaluator> partner = static_pointer_cast<tree_evaluator>(partner_buf);
   shared_ptr<tree_evaluator> child = static_pointer_cast<tree_evaluator>(clone());
-  child->learning_rate = fmax(rnorm(0.5, 0.1) * (learning_rate + partner->learning_rate), 1e-5);
   child->weight_limit = fmax(rnorm(0.5, 0.1) * (weight_limit + partner->weight_limit), 1);
 
   tree::ptr sub = partner->root->get_subtree(0.3);
@@ -491,7 +541,6 @@ evaluator_ptr tree_evaluator::mutate(evaluator::dist_category dc) const {
   child->root->mutate(dim, dc);
 
   vector<double> spread = {1e-3, 1e-2, 1e-1};
-  child->learning_rate = fmax(child->learning_rate + rnorm(0, spread[dc]), 1e-5);
   child->weight_limit = fmax(child->weight_limit * rnorm(1, spread[dc]), 1);
   child->gamma = fmax(child->gamma + rnorm(0, 1e-1 * spread[dc]), 0);
   child->mut_tag = dc;
@@ -500,22 +549,19 @@ evaluator_ptr tree_evaluator::mutate(evaluator::dist_category dc) const {
 
 string tree_evaluator::serialize() const {
   stringstream ss;
-  string sep = " ";
-  ss << evaluator::serialize() << sep << learning_rate << sep << weight_limit << sep << gamma << sep << root->serialize();
+  ss << evaluator::serialize() << sep << weight_limit << sep << gamma << sep << root->serialize();
   return ss.str();
 }
 
 void tree_evaluator::deserialize(stringstream &ss) {
   evaluator::deserialize(ss);
-  ss >> learning_rate >> weight_limit >> gamma;
+  ss >> weight_limit >> gamma;
 
   root = tree::ptr(new tree);
   root->deserialize(ss);
 
   return;
 }
-
-void tree_evaluator::set_learning_rate(double r) { learning_rate = r; }
 
 void tree_evaluator::set_weights(const vec &w) {
   root->set_weights(w);
@@ -528,7 +574,6 @@ vec tree_evaluator::get_weights() const {
 void tree_evaluator::initialize(input_sampler sampler, int cdim, set<int> ireq) {
   stable = true;
   dim = cdim;
-  learning_rate = fabs(rnorm(0, 0.5));
   weight_limit = u01(100, 10000);
 
   // prepare input indices for the tree to use
@@ -545,7 +590,7 @@ void tree_evaluator::initialize(input_sampler sampler, int cdim, set<int> ireq) 
 }
 
 string tree_evaluator::status_report() const {
-  return to_string(gamma);
+  return to_string(gamma) + comma + to_string(l2norm(get_weights())) + comma + to_string(complexity());
 }
 
 set<int> tree_evaluator::list_inputs() const {
@@ -554,4 +599,185 @@ set<int> tree_evaluator::list_inputs() const {
 
 void tree_evaluator::add_inputs(set<int> inputs) {
   root->add_inputs({inputs.begin(), inputs.end()});
+}
+
+void tree_evaluator::example_setup(int cdim) {
+  stable = true;
+  dim = cdim;
+  // learning_rate = fabs(rnorm(0, 0.01));
+  weight_limit = u01(1, 10000);
+
+  // debug: fixed tree definition
+  int idx_angle = 0;
+  int idx_thrust = 1;
+  int idx_ancp = 9;
+
+  auto make_leaf = [](tree_evaluator::tree_class classid, double value, int idx, double w = 1) {
+    tree::ptr K(new tree);
+    K->w = w;
+    K->class_id = classid;
+    K->const_value = value;
+    K->input_index = idx;
+    return K;
+  };
+
+  auto make_tree = [](tree_evaluator::tree_class classid, int fname, vector<tree::ptr> children, double w = 1) {
+    tree::ptr K(new tree);
+    K->w = w;
+    K->class_id = classid;
+    K->fname = fname;
+    K->subtree = children;
+    return K;
+  };
+
+  root = make_tree(
+      BINARY_TREE,
+      BINARY_PRODUCT,
+      {
+          make_tree(
+              BINARY_TREE,
+              BINARY_KERNEL,
+              {
+                  make_tree(
+                      WEIGHT_TREE,
+                      -1,
+                      {
+                          // angle > 0
+                          make_tree(
+                              UNARY_TREE,
+                              UNARY_SIGMOID,
+                              {make_leaf(INPUT_TREE, 0, idx_angle, 5)}),
+                          // ancp > 0
+                          make_tree(
+                              UNARY_TREE,
+                              UNARY_SIGMOID,
+                              {make_leaf(INPUT_TREE, 0, idx_ancp, 5)},
+                              -1),
+                      }),
+                  make_leaf(
+                      CONSTANT_TREE,
+                      0.3,
+                      0),
+              }),
+          make_tree(
+              BINARY_TREE,
+              BINARY_KERNEL,
+              {
+                  make_tree(
+                      WEIGHT_TREE,
+                      -1,
+                      {
+                          make_leaf(
+                              INPUT_TREE,
+                              0,
+                              idx_thrust),
+                          make_leaf(
+                              CONSTANT_TREE,
+                              -80,
+                              0),
+                      }),
+                  make_leaf(
+                      CONSTANT_TREE,
+                      40,
+                      0),
+              }),
+      });
+
+  // tree::ptr in_angle(new tree);
+  // in_angle->w = 1;
+  // in_angle->class_id = INPUT_TREE;
+  // in_angle->input_index = idx_ancp;
+
+  // tree::ptr kh(new tree);
+  // kh->w = 1;
+  // kh->class_id = CONSTANT_TREE;
+  // kh->const_value = 1;
+
+  // tree::ptr k_angle = make_tree(BINARY_TREE, BINARY_KERNEL, {in_angle, kh});
+
+  // tree::ptr in_thrust(new tree);
+  // in_thrust->w = 1;
+  // in_thrust->class_id = INPUT_TREE;
+  // in_thrust->input_index = idx_thrust;
+
+  // tree::ptr thrust_target(new tree);
+  // thrust_target->w = 1;
+  // thrust_target->class_id = CONSTANT_TREE;
+  // thrust_target->const_value = 100;
+
+  // tree::ptr W(new tree);
+  // W->w = 1;
+  // W->class_id = WEIGHT_TREE;
+  // W->subtree.resize(2);
+
+  // tree::ptr SK1(new tree);
+  // tree::ptr SK2(new tree);
+
+  // SK2->class_id = UNARY_TREE;
+
+  // SK1->class_id = UNARY_TREE;
+  // SK1->w = 1;
+  // SK1->fname = UNARY_SIGMOID;
+  // SK1->subtree.resize(1);
+
+  // SK2->class_id = UNARY_TREE;
+  // SK2->w = -1;
+  // SK2->fname = UNARY_SIGMOID;
+  // SK2->subtree.resize(1);
+
+  // W->subtree[0] = SK1;
+  // W->subtree[1] = SK2;
+
+  // tree::ptr I1(new tree);
+  // I1->class_id = INPUT_TREE;
+  // I1->w = 1;
+  // I1->input_index = 0;
+
+  // SK1->subtree[0] = I1;
+
+  // tree::ptr I2(new tree);
+  // I2->class_id = INPUT_TREE;
+  // I2->w = 1;
+  // I2->input_index = 4;
+
+  // SK2->subtree[0] = I2;
+
+  // tree::ptr C1(new tree);
+  // C1->w = 1;
+  // C1->class_id = CONSTANT_TREE;
+  // C1->const_value = 0.2;
+
+  // K->subtree[0] = W;
+  // K->subtree[1] = C1;
+
+  // tree::ptr S(new tree);
+  // S->w = 1;
+  // S->class_id = UNARY_TREE;
+  // S->fname = UNARY_SIGMOID;
+  // S->subtree.resize(1);
+
+  // tree::ptr W2(new tree);
+  // W2->w = 0.02;
+  // W2->class_id = WEIGHT_TREE;
+  // W2->subtree.resize(2);
+
+  // tree::ptr I3(new tree);
+  // I3->w = 1;
+  // I3->class_id = INPUT_TREE;
+  // I3->input_index = 1;
+
+  // tree::ptr C2(new tree);
+  // C2->w = -1;
+  // C2->class_id = CONSTANT_TREE;
+  // C2->const_value = 50;
+
+  // W2->subtree[0] = I3;
+  // W2->subtree[1] = C2;
+
+  // S->subtree[0] = W2;
+
+  // root->subtree[0] = K;
+  // root->subtree[1] = S;
+
+  cout << "tree_evaluator::example_setup: complete with size " << root->count_trees() << endl;
 }

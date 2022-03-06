@@ -31,6 +31,7 @@ class game {
   virtual std::vector<choice_ptr> generate_choices(agent_ptr a) = 0;
   virtual vec vectorize_choice(choice_ptr c, int pid) const = 0;
   virtual vec vectorize_state(int pid) const = 0;
+  virtual choice_ptr unvectorize_choice(vec x) const = 0;
 
   hm<int, std::vector<record>> play(int epoch, std::string row_prefix = "");
   choice_ptr select_choice(agent_ptr a);

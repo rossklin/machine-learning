@@ -23,7 +23,7 @@ struct choice_selector {
 
  public:
   choice_selector(float r, cs_schema s = CS_RANKED);
-  choice_ptr select(std::vector<choice_ptr> opts);
+  int select(std::vector<option> opts);
   void set_exploration_rate(float r);
   void set_schema(cs_schema s);
   std::string serialize() const;

@@ -48,7 +48,20 @@ struct MutexType {
 std::string join_string(const std::vector<std::string> vec, std::string delim);
 
 double foptim(double x0, std::function<double(double)> f);
-vec voptim(vec x0, std::function<double(vec)> fopt, std::function<vec(vec)> fgrad);
+
+template <typename T>
+struct optim_result {
+  vec opt;
+  double obj;
+  T success;
+  T improvement;
+  T overshoot;
+  T its;
+  T dx;
+  T dy;
+};
+
+optim_result<double> voptim(vec x0, std::function<double(vec)> fopt, std::function<vec(vec)> fgrad);
 
 template <typename T = double, typename V = double>
 std::vector<V> map(std::function<V(T)> f, std::vector<T> x) {
@@ -101,6 +114,8 @@ double angle_difference(double a, double b);
 
 double time_discount(double x, double t);
 
+double mem_weight(double ss, double cs);
+
 double u01(double a = 0, double b = 1);
 
 double rnorm(double m = 0, double s = 1);
@@ -110,6 +125,7 @@ int rand_int(int a, int b);
 double signum(double x);
 
 double sigmoid(double x, double h);
+double psigmoid(double x, double h);
 
 // std::vector arithmetics
 vec operator+(vec a, const vec &b);

@@ -25,10 +25,11 @@ class tree_evaluator : public evaluator {
 
     double evaluate(const vec &x);
     void initialize(std::vector<int> inputs);
+    void example_setup(int cdim);
     ptr get_subtree(double p_cut);
     void emplace_subtree(ptr, double p_put);
     ptr clone();
-    int calculate_dw(vec &dgdw, int offset, double delta, double alpha, double gamma);
+    int calculate_dw(vec &dgdw, int offset, double alpha);
     int set_weights(const vec &x, int offset = 0);
     vec get_weights() const;
     int count_trees();
@@ -40,6 +41,7 @@ class tree_evaluator : public evaluator {
     void deserialize(std::stringstream &ss);
     std::set<int> list_inputs() const;
     void add_inputs(std::vector<int> inputs);
+    std::string printout(int indent = 0) const;
   };
 
  public:
@@ -62,10 +64,9 @@ class tree_evaluator : public evaluator {
   double complexity() const override;
   std::set<int> list_inputs() const override;
   void add_inputs(std::set<int> inputs) override;
-  void set_learning_rate(double r) override;
   void set_weights(const vec &x) override;
   vec get_weights() const override;
-  vec gradient(vec input, double delta, double w_reg) const override;
+  vec gradient(vec input, double delta) const override;
 
   void example_setup(int cdim);
 };

@@ -8,8 +8,6 @@ using namespace pod_game_parameters;
 
 simple_pod_evaluator::simple_pod_evaluator() : evaluator() {}
 
-void simple_pod_evaluator::set_learning_rate(double r) {}
-
 // return basic on-track feature
 double simple_pod_evaluator::evaluate(vec x) {
   double thrust = x[1];
@@ -27,12 +25,12 @@ double simple_pod_evaluator::evaluate(vec x) {
   bool want_boost = dist > 4000 && angle_match > 0.95;
   double boost_match = boost == want_boost;
 
-  return angle_match * thrust_match + boost_match;
+  return angle_match * thrust_match * (boost_match + 0.1);
 }
 
-bool simple_pod_evaluator::update(vector<record> results, agent_ptr a, double &rel_change) {
+evaluator_ptr simple_pod_evaluator::update(vector<record> results, agent_ptr a, double &rel_change) const {
   rel_change = 0;
-  return true;
+  return clone();
 }
 
 void simple_pod_evaluator::prune(double l) {}
@@ -47,7 +45,7 @@ std::string simple_pod_evaluator::status_report() const { return "dummy status";
 double simple_pod_evaluator::complexity() const { return 0; }
 void simple_pod_evaluator::set_weights(const vec &w) {}
 vec simple_pod_evaluator::get_weights() const { return {}; }
-vec simple_pod_evaluator::gradient(vec input, double target, double w_reg) const { return {}; }
+vec simple_pod_evaluator::gradient(vec input, double target) const { return {}; }
 set<int> simple_pod_evaluator::list_inputs() const {
   vector<int> buf = seq(0, 100);
   return set<int>(buf.begin(), buf.end());

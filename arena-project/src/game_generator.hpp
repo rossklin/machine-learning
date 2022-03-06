@@ -22,6 +22,6 @@ class game_generator {
   std::vector<agent_ptr> prepare_n(agent_f gen, int n, float plim) const;
   game_ptr team_bots_vs(agent_ptr a) const;
   std::vector<agent_ptr> make_teams(std::vector<agent_ptr> ps) const;
-  std::function<vec()> generate_input_sampler() const;
+  input_sampler generate_input_sampler(int n = 10) const;
   int choice_dim() const;
 };

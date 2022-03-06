@@ -14,7 +14,6 @@ team_evaluator::team_evaluator() : evaluator() {
 
 team_evaluator::team_evaluator(vector<evaluator_ptr> e, int ri) : evaluator(), evals(e), role_index(ri) {
   tag = "team";
-  set_learning_rate(fabs(rnorm(0, 0.5)));
   stable = true;
 }
 
@@ -26,60 +25,37 @@ void team_evaluator::reset_memory_weights(double a) {
   for (auto e : evals) e->reset_memory_weights(a);
 }
 
-void team_evaluator::set_learning_rate(double r) {
-  learning_rate = r;
-  for (auto e : evals) e->set_learning_rate(r);
-}
-
 void team_evaluator::set_weights(const vec &w) {
-  // int offset = 0;
-  // for (auto e : evals) {
-  //   int n = e->get_weights().size();
-  //   vec buf(w.begin() + offset, w.begin() + offset + n);
-  //   e->set_weights(buf);
-  //   offset += n;
-  // }
 }
 
 vec team_evaluator::get_weights() const {
-  // vec res;
-  // for (auto e : evals) res = vec_append(res, e->get_weights());
-  // return res;
   return {};
 }
 
 // gradient of delta² - w_reg |w|
 // wrt w, where delta = target - output
-vec team_evaluator::gradient(vec input, double target, double w_reg) const {
-  // int team_idx = input[role_index];
-  // assert(team_idx < evals.size());
-  // vec res;
-  // for (int i = 0; i < evals.size(); i++) {
-  //   int n = evals[i]->get_weights().size();
-  //   if (i == team_idx) {
-  //     res = vec_append(res, evals[i]->gradient(input, target, w_reg));
-  //   } else {
-  //     res = vec_append(res, vec(n, 0));
-  //   }
-  // }
-
-  // return res;
+vec team_evaluator::gradient(vec input, double target) const {
   return {};
 }
 
 double team_evaluator::evaluate(vec x) {
   int team_idx = x[role_index];
-  assert(team_idx < evals.size());
+
+  // sanity check
+  assert(team_idx < evals.size() && team_idx >= 0);
+  assert(x[role_index] == floor(x[role_index]));
+
   return evals[team_idx]->evaluate(x);
 }
 
-bool team_evaluator::update(std::vector<record> results, agent_ptr a, double &rel_change) {
-  if (results.empty()) return true;
+evaluator_ptr team_evaluator::update(std::vector<record> results, agent_ptr a, double &rel_change) const {
+  team_evaluator::ptr buf = static_pointer_cast<team_evaluator>(clone());
+  if (results.empty()) return buf;
 
   hm<int, vector<record>> parts;
 
   for (auto r : results) {
-    int team_idx = r.input[role_index];
+    int team_idx = r.state[role_index];
     assert(team_idx < evals.size());
     parts[team_idx].push_back(r);
   }
@@ -87,15 +63,19 @@ bool team_evaluator::update(std::vector<record> results, agent_ptr a, double &re
   rel_change = 0;
   double rc = 0;
   for (auto x : parts) {
-    bool test = evals[x.first]->update(x.second, a, rc);
-    rel_change += rc;
-    if (!test) return false;
+    evaluator_ptr test = evals[x.first]->update(x.second, a, rc);
+    if (test) {
+      rel_change += rc;
+      buf->evals[x.first] = test;
+    } else {
+      return NULL;
+    }
   }
 
   rel_change /= parts.size();
 
-  update_stable();
-  return stable;
+  buf->update_stable();
+  return buf;
 }
 
 void team_evaluator::prune(double l) {
@@ -108,7 +88,6 @@ evaluator_ptr team_evaluator::mate(evaluator_ptr _partner) const {
   team_evaluator::ptr partner = static_pointer_cast<team_evaluator>(_partner);
   team_evaluator::ptr child(new team_evaluator(*this));
   for (int i = 0; i < n; i++) child->evals[i] = sample_one(evals)->mate(sample_one(partner->evals));
-  child->set_learning_rate(0.5 * (learning_rate + _partner->learning_rate));
   child->update_stable();
 
   return child;
@@ -119,7 +98,6 @@ evaluator_ptr team_evaluator::mutate(evaluator::dist_category dc) const {
 
   team_evaluator::ptr child(new team_evaluator(*this));
   for (int i = 0; i < child->evals.size(); i++) child->evals[i] = evals[i]->mutate(dc);
-  child->set_learning_rate(fmax(learning_rate + rnorm(0, 1e-2), 1e-5));
   child->update_stable();
   child->mut_tag = dc;
 
@@ -140,12 +118,10 @@ void team_evaluator::deserialize(std::stringstream &ss) {
   assert(n > 0 && n < 1e4);
   evals.resize(n);
   for (auto &e : evals) e = deserialize_evaluator(ss);
-  set_learning_rate(learning_rate);
 }
 
 void team_evaluator::initialize(input_sampler sampler, int cdim, std::set<int> ireq) {
   for (auto e : evals) e->initialize(sampler, cdim, ireq);
-  set_learning_rate(learning_rate);
   update_stable();
 }
 
@@ -153,7 +129,6 @@ std::string team_evaluator::status_report() const {
   stringstream ss;
 
   ss << complexity() << comma
-     << learning_rate << comma
      << mut_tag << comma
      << join_string(map<evaluator_ptr, string>([](evaluator_ptr e) { return e->status_report(); }, evals), comma);
 
@@ -162,7 +137,8 @@ std::string team_evaluator::status_report() const {
 
 evaluator_ptr team_evaluator::clone() const {
   team_evaluator::ptr child(new team_evaluator(*this));
-  child->evals = map<evaluator_ptr, evaluator_ptr>([](evaluator_ptr e) { return e->clone(); }, evals);
+  // child->evals = map<evaluator_ptr, evaluator_ptr>([](evaluator_ptr e) { return e->clone(); }, evals);
+  child->evals = map<evaluator_ptr, evaluator_ptr>(&evaluator::clone, evals);
   return child;
 }
 

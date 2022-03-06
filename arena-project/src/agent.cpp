@@ -39,7 +39,7 @@ istream &operator>>(istream &is, training_stats &x) {
 }
 
 void auto_update(double &x, double t, double gamma, double n) {
-  double hw = (1 - pow(gamma, n)) / (1 - gamma);
+  double hw = (1 - pow(gamma, n + 1)) / (1 - gamma) - 1;
   x = (t + hw * x) / (hw + 1);
 }
 
@@ -81,11 +81,14 @@ agent::agent() {
   was_protected = false;
   age = 0;
   mut_age = 0;
-  future_discount = fabs(rnorm(0.1, 0.03));
-  w_reg = fabs(rnorm(1e-2, 1e-3));
   mem_limit = fabs(rnorm(1e2, 5e1));
   mem_curve = fabs(rnorm(2e1, 1e1));
   inspiration_age_limit = fabs(rnorm(1e1, 2));
+  future_discount = pow(10, -u01(1, 2));
+  w_reg = pow(10, -u01(3, 5));
+  learning_rate = pow(10, -u01(4, 6));
+  step_limit = pow(10, -u01(2, 4));
+  use_f0c = u01() < 0.1;
 
   csel = choice_selector_ptr(new choice_selector(0.2));
 }
@@ -96,14 +99,16 @@ void agent::train(vector<vector<record>> results, input_sampler isam) {
   vector<vec> test_inputs(ntest);
   vector<double> test_outputs(ntest);
   for (int i = 0; i < ntest; i++) {
-    test_inputs[i] = isam();
+    record r = isam();
+    test_inputs[i] = vec_append(r.opts[r.selected_option].choice, r.state);
     test_outputs[i] = eval->evaluate(test_inputs[i]);
   }
 
   // Calculate SFR
   double gamma = 1 - future_discount;
-  for (auto res : results) {
+  for (auto &res : results) {
     int n = res.size();
+    res.back().sum_future_rewards = res.back().reward;
     for (int i = n - 2; i >= 0; i--) {
       float r = res[i].reward;
       res[i].sum_future_rewards = r + gamma * res[i + 1].sum_future_rewards;
@@ -112,7 +117,9 @@ void agent::train(vector<vector<record>> results, input_sampler isam) {
 
   // Optimize evaluator
   double rel_change = 0;
-  bool success = eval->update(vec_flatten(results), shared_from_this(), rel_change);
+  evaluator_ptr upd = eval->update(vec_flatten(results), shared_from_this(), rel_change);
+  if (upd) eval = upd;
+  bool success = !!upd;
 
   // Test outputs
   vector<double> test_outputs2(ntest), diffs(ntest);
@@ -126,6 +133,9 @@ void agent::train(vector<vector<record>> results, input_sampler isam) {
     eval->stable = false;
   }
 
+  age++;
+  mut_age++;
+
   // update training stats, age and adapt learning rate
   double tsrate = 0.9;
 
@@ -134,21 +144,19 @@ void agent::train(vector<vector<record>> results, input_sampler isam) {
   if (success) {
     auto_update(tstats.output_change, output_change, tsrate, tstats.n);
     auto_update(tstats.rel_change_mean, rel_change, tsrate, tstats.n);
+
+    if (tstats.output_change > 1e-2 / sqrt(age)) {
+      tstats.output_change *= 0.75;
+      learning_rate = 0.75 * learning_rate;
+    } else if (tstats.output_change < 1e-4 / sqrt(age)) {
+      tstats.output_change *= 1.25;
+      learning_rate = fmin(1.25 * learning_rate, 1);
+    }
   } else {
     auto_update(tstats.rate_optim_failed, !isfinite(rel_change), tsrate, tstats.n);
   }
 
   tstats.n++;
-  age++;
-  mut_age++;
-
-  if (tstats.output_change > 1e-2 / sqrt(age)) {
-    tstats.output_change *= 0.75;
-    eval->set_learning_rate(0.75 * eval->learning_rate);
-  } else if (tstats.output_change < 1e-4 / sqrt(age)) {
-    tstats.output_change *= 1.25;
-    eval->set_learning_rate(fmin(1.25 * eval->learning_rate, 1));
-  }
 }
 
 bool agent::evaluator_stability() const {
@@ -181,6 +189,9 @@ agent_ptr agent::mate(agent_ptr p) const {
   a->mem_curve = join_vals({mem_curve, p->mem_curve});
   a->mem_limit = join_vals({(double)mem_limit, (double)p->mem_limit});
   a->inspiration_age_limit = join_vals({(double)inspiration_age_limit, (double)p->inspiration_age_limit});
+  a->learning_rate = join_vals({(double)learning_rate, (double)p->learning_rate});
+  a->step_limit = join_vals({(double)step_limit, (double)p->step_limit});
+  a->use_f0c = use_f0c == p->use_f0c ? use_f0c : u01() > 0.5;
   return a->mutate();
 }
 
@@ -199,6 +210,8 @@ agent_ptr agent::mutate() const {
   a->mem_curve = mutate_val(a->mem_curve);
   a->mem_limit = mutate_val(a->mem_limit);
   a->inspiration_age_limit = mutate_val(a->inspiration_age_limit);
+  a->learning_rate = mutate_val(a->learning_rate);
+  a->step_limit = mutate_val(a->step_limit);
   return a;
 }
 
@@ -269,16 +282,24 @@ void agent::deserialize(std::stringstream &ss) {
   if (id >= idc) idc = id + 1;
 }
 
-choice_ptr agent::select_choice(game_ptr g) {
+record agent::select_choice(game_ptr g) {
+  record r;
   auto opts = g->generate_choices(shared_from_this());
-  vec s = g->vectorize_state(id);
-  for (auto opt : opts) {
-    vec x = g->vectorize_choice(opt, id);
-    x.insert(x.end(), s.begin(), s.end());
-    opt->value_buf = evaluate_choice(x);
+
+  r.state = g->vectorize_state(id);
+  r.opts.resize(opts.size());
+  r.reward = 0;
+  r.sum_future_rewards = 0;
+
+  for (int i = 0; i < opts.size(); i++) {
+    r.opts[i].choice = g->vectorize_choice(opts[i], id);
+    r.opts[i].input = vec_append(r.opts[i].choice, r.state);
+    r.opts[i].output = evaluate_choice(r.opts[i].input);
   }
 
-  return csel->select(opts);
+  r.selected_option = csel->select(r.opts);
+
+  return r;
 }
 
 string agent::status_report() const {
@@ -314,11 +335,24 @@ string agent::status_report() const {
      << mem_limit << comma  // todo: cap nr memories
      << mem_curve << comma  // todo: length of mem fade curve
      << inspiration_age_limit << comma
+     << learning_rate << comma
+     << step_limit << comma
+     << use_f0c << comma
 
+     // training stats
      << tstats.rel_change_mean << comma
      << tstats.output_change << comma
      << tstats.rate_successfull << comma
      << tstats.rate_optim_failed << comma
+
+     // optimization stats
+     << optim_stats.success.serialize(comma) << comma
+     << optim_stats.improvement.serialize(comma) << comma
+     << optim_stats.its.serialize(comma) << comma
+     << optim_stats.overshoot.serialize(comma) << comma
+     << optim_stats.dx.serialize(comma) << comma
+     << optim_stats.dy.serialize(comma) << comma
+
      << parents.size() << comma
      << ancestors.size() << comma
      << eval->status_report();

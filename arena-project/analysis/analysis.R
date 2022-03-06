@@ -3,97 +3,127 @@ library(ggplot2)
 library(tidyr)
 library(gridExtra)
 
-## Column defs
+source("util.R")
 
-dval.cols <- c("current", "last", "value_ma", "sd_ma", "diff_ma", "n")
-team.evaluator.cols <- c("treesize", "lrate", "mut_tag", "gamma0", "gamma1")
+run.id <- "2944455052"
+## First run with objective function including all options
+## batch.size: ceil(sqrt(epoch))
+## agents speed > 1 at epoch 1 (0 games): 0.8%
+## agents speed > 1 at epoch 25 (90 games): 0.15%
+## agents speed > 1 who started < 1: 0.15%
 
-agent.cols <- c("id",
-"parent_hash",
-"class_id",
-"original_id",
-"label",
-paste("score_tmt", dval.cols, sep="."),
-paste("score_simple", dval.cols, sep="."),
-paste("score_refbot", dval.cols, sep="."),
-"rank",
-"last_rank",
-"age",
-"mut_age",
-"future_discount",
-"w_reg",
-"mem_limit",
-"mem_curve",
-"inspiration_age_limit",
-"tstats.rel_change_mean",
-"tstats.output_change",
-"tstats.rate_successfull",
-"tstats.rate_optim_failed",
-"parents.size",
-"ancestors.size",
-team.evaluator.cols
-)
+run.id <- "3398175809"
+## First run with init to zero
+## 0.4% success from start, all crashed after training
 
-pod.game.cols <- c("did.finish", "relative", "speed")
+run.id <- "3255738355"
+## First run with flat exploration
+## Updated initialization to small normal values instead of 0
+## Fixed init error limit
+## 0.2% success from start, all crashed after training
 
-## Pure train
+run.id <- "3850273625"
+## Updated conf dists
+## future_discount = pow(10, -u01(1, 2));
+## w_reg = pow(10, -u01(3, 5));
+## learning_rate = pow(10, -u01(4, 6));
+## step_limit = pow(10, -u01(2, 4));
+## use_f0c = u01() < 0.1;
+## RESULTS:
+## total: 0.275%, e1: 0.225%,  end: 0.050%, impr: 0.025%, removed: 0.125%,  worse: 0.125%
 
-## cases
-## extreme gradient: 1
+run.id <- "2358257395"
+## Init with supervision data
+## n = 100
 
-run.id <- "4263312114"
+df.pt <- setNames(read.csv(paste0("data/pure-train-run-", run.id, ".csv"), header=F, stringsAsFactors=F), c("epoch", "supervision", "reinforcement", agent.cols)) %>%
+    filter(epoch < 100)
 
-df.pt <- setNames(read.csv(paste0("data/pure-train-run-", run.id, ".csv"), header=F, stringsAsFactors=F), c("epoch", agent.cols))
+counts(df.pt)
+
+df.pt %>%
+    group_by(epoch) %>%
+    summarize(
+        success = mean(tstats.rate_successfull),
+        best = max(score_simple.value_ma),
+        best.cur = max(score_simple.current),
+        n = n()
+    )
+
+df.pt %>%
+    filter(epoch == max(epoch), score_simple.value_ma >= 1) %>%
+    distinct(id, use.f0c, step.limit, learning.rate, future_discount, supervision, reinforcement) %>%
+    summary
+
+df.pt %>%
+    mutate(x = score_simple.value_ma) %>%
+    group_by(id) %>%
+    filter(x[epoch == 1] < 0.75, x >= 1) %>%
+    group_by %>%
+    distinct(id, step.limit, learning.rate, future_discount, supervision, reinforcement)
 
 top.pids <- (
     df.pt %>%
-    filter(epoch == max(epoch)) %>%
-    arrange(-score_refbot.value_ma) %>%
-    head(5)
+    filter(epoch > 1) %>%
+    arrange(-score_simple.value_ma) %>%
+    ## arrange(-optimstats.improvement.value_ma) %>%
+    distinct(id) %>%
+    head(10)
 )$id
 
 df.pt %>%
     filter(id %in% top.pids) %>%
-    select(epoch, pid = id, speed = score_simple.current, ma = score_simple.value_ma) %>%
-    pivot_longer(-c(epoch, pid)) %>%
-    ggplot(aes(x = epoch, y = value, group = name, color = name)) +
-    geom_smooth(se=F) +
-    geom_point() + 
-    geom_hline(yintercept = 0:1) +
-    facet_grid(pid~.)
+    transmute(
+        epoch = epoch,
+        id = id,
+        speed = score_simple.current,
+        speed.ma = score_simple.value_ma,
+        success = tstats.rate_successfull,
+        ## improve = optimstats.improvement.current,
+        ## its = optimstats.its.value_ma / 100,
+        wsum = wsum / 100,
+        treesize = treesize / 100,
+        out.change = tstats.output_change,
+        winrate = score_refbot.current
+    ) %>%
+    arrange(id, epoch) %>%
+    ind.graph(c("speed", "speed.ma", "success", "wsum", "treesize", "out.change"))
+
+df.pt %>%
+    filter(id %in% top.pids) %>%
+    distinct(id, reinforcement, supervision, treesize)
+
+
+df.pt %>%
+    filter(id %in% top.pids) %>%
+    transmute(
+        epoch = epoch,
+        speed = score_simple.current,
+        wsum = wsum,
+        wchange = tstats.rel_change_mean,
+        srate = tstats.rate_successfull,
+        success = c(NA, head(srate, -1)) > c(NA, NA, head(srate, -2)) | c(NA, head(srate, -1)) == 1
+    ) %>%
+    arrange(epoch)
+
+df.pt %>% filter(id == 17) %>%
+    select(epoch, w_reg, opt.succ = optimstats.success.value_ma, speed = score_simple.current, dx = optimstats.dx.value_ma, dy = optimstats.dy.value_ma, wsum0, wsum1)
+
+df.pt %>%
+    group_by(epoch) %>%
+    summarize(m = max(score_simple.current))
     
-
 df.pt %>%
-    select(epoch, pid = id, winrate = score_refbot.current, speed = score_simple.current) %>%
-    filter(pid %in% top.pids) %>%
-    mutate(speed = speed / 250) %>%
-    pivot_longer(-c(epoch, pid)) %>%
-    ggplot(aes(x = epoch, y = value)) +
-    geom_smooth() +
-    geom_point() + 
-    geom_hline(yintercept = 0:1) +
-    coord_cartesian(ylim = c(-0.5, 1.5)) +
-    facet_grid(pid~name)
-
-df.pt %>%
-    select(epoch, pid, starts_with("training.rate")) %>%
+    select(epoch, pid = id, starts_with("tstats"), starts_with("wsum")) %>%
     filter(pid %in% top.pids) %>%
     pivot_longer(-c(epoch, pid)) %>%
     ggplot(aes(x = epoch, y = value, group = interaction(name, pid), color = name)) +
     geom_path(size=2, alpha=0.3) +
-    facet_grid(.~name, scales="free")
-
+    facet_grid(name~., scales="free")
+    
 df.pt %>%
-    select(epoch, pid, starts_with("training.rel")) %>%
-    filter(pid %in% top.pids) %>%
-    pivot_longer(-c(epoch, pid)) %>%
-    ggplot(aes(x = epoch, y = value, group = interaction(name, pid), color = name)) +
-    geom_path() +
-    facet_grid(pid~name, scales="free")
-
-df.pt %>%
-    filter(pid %in% top.pids) %>%
-    mutate(cent = ceiling(epoch / 100)) %>%
+    select(epoch, pid = id, speed = score_simple.value_ma, change = score_simple.diff_ma) %>%
+    mutate(cent = ceiling(epoch / 10)) %>%
     group_by(cent, pid) %>%
     summarize(r = mean(speed)) %>%
     group_by(cent) %>%

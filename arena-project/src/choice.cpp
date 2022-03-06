@@ -1,7 +1,8 @@
+#include "choice.hpp"
+
 #include <algorithm>
 
 #include "agent.hpp"
-#include "choice.hpp"
 #include "game.hpp"
 #include "utility.hpp"
 
@@ -9,19 +10,21 @@ using namespace std;
 
 choice_selector::choice_selector(float r, cs_schema s) : xrate(r), schema(s){};
 
-choice_ptr choice_selector::select(vector<choice_ptr> opts) {
+int choice_selector::select(vector<option> opts) {
+  if (u01() < xrate) return rand_int(0, opts.size() - 1);
+
+  for (int i = 0; i < opts.size(); i++) opts[i].original_idx = i;
+
   // todo: support for weighted selection
   // sort options
-  sort(opts.begin(), opts.end(), [](choice_ptr a, choice_ptr b) {
-    return a->value_buf > b->value_buf;
+  sort(opts.begin(), opts.end(), [](option a, option b) {
+    return a.output > b.output;
   });
 
   // chose an option with exponential probability per rank
-  while (true) {
-    for (auto opt : opts) {
-      if (u01() > xrate) return opt;
-    }
-  }
+  int rank = ranked_sample(seq(0, opts.size() - 1), 1 - xrate);
+
+  return opts[0].original_idx;
 }
 
 void choice_selector::set_exploration_rate(float r) { xrate = r; }

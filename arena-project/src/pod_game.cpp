@@ -1,5 +1,6 @@
 #include "pod_game.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <fstream>
@@ -70,20 +71,19 @@ pod_game::pod_game(player_table pl) : game(pl) {
 
 record_table pod_game::increment(string row_prefix) {
   record_table res;
-  hm<int, double> htab_before = htable();
+  hm<int, double> dtab_before;
+  auto ttab_before = ttable();
   auto agents = typed_agents;
-
-  auto process_pod = [this](shared_ptr<pod_choice> x, pod_data *p) {
-  };
 
   // proceess choices
   for (auto x : agents) {
     int pid = x.first;
     pod_agent::ptr p = x.second;
+    dtab_before[pid] = pod_distance_travelled(pid);
 
-    shared_ptr<pod_choice> c = static_pointer_cast<pod_choice>(p->select_choice(shared_from_this()));
-    res[pid].input = vectorize_input(c, pid);
-    res[pid].output = p->evaluate_choice(res[pid].input);
+    res[pid] = p->select_choice(shared_from_this());
+    vec csel = res[pid].opts[res[pid].selected_option].choice;
+    shared_ptr<pod_choice> c = static_pointer_cast<pod_choice>(unvectorize_choice(csel));
 
     p->data.a += fmin(angular_speed, fabs(c->angle)) * signum(c->angle);
 
@@ -158,26 +158,32 @@ record_table pod_game::increment(string row_prefix) {
     }
   }
 
-  hm<int, double> htab_after = htable();
+  auto ttab_after = ttable();
 
-  auto score = [this](int pid, hm<int, double> tab) {
-    double own = tab[pid];
-    double res = INFINITY;
+  auto count_leads = [](hm<int, double> tab, int id) -> int {
+    double s = tab[id];
+    int leads = 0;
     for (auto x : tab) {
-      if (players[x.first]->team != players.at(pid)->team) res = fmin(res, own - x.second);
+      if (x.first != id) leads += x.second < s;
     }
-
-    assert(isfinite(res));
-
-    return res;
+    return leads;
   };
 
   for (auto x : players) {
-    // change in greatest distance travelled in team
-    res[x.first].reward_simple = 1e-3 * (htab_after[x.first] - htab_before[x.first]);
+    int pid = x.first;
+    int tid = x.second->team;
+
+    // Basic reward for moving forward
+    double reward1 = pod_distance_travelled(pid) - dtab_before[pid];
+
+    int leads_before = count_leads(ttab_before, tid);
+    int leads_after = count_leads(ttab_after, tid);
+
+    // Reward for taking the lead
+    double reward2 = leads_after > leads_before;
 
     // change in difference in distance travelled between your team and best opponent team
-    res[x.first].reward = 1e-3 * (score(x.first, htab_after) - score(x.first, htab_before));
+    res[x.first].reward = 1e-3 * reward1 + reward2;
 
     res[x.first].sum_future_rewards = 0;
   }
@@ -218,11 +224,7 @@ bool pod_game::finished() {
 std::string pod_game::end_stats() {
   stringstream ss;
 
-  auto h = htable();
-  int pid = team_clone_ids(0).front();
-  int pid2 = team_clone_ids(1).front();
-
-  ss << finished() << comma << (h[pid] / h[pid2]) << comma << (h[pid] / turns_played);
+  ss << finished();
 
   return ss.str();
 }
@@ -238,7 +240,7 @@ int pod_game::select_winner() {
 }
 
 double pod_game::winner_reward(int epoch) {
-  return 3;
+  return 10;
 }
 
 // simple score should be somewhere around 1
@@ -252,18 +254,6 @@ void pod_game::reset() {
   did_finish = false;
   run_laps = 0;
 }
-
-// agent_ptr pod_game::generate_player() {
-//   if (u01() < 0.5) {
-//     return tree_pod_agent();
-//   } else {
-//     return rbf_pod_agent();
-//   }
-// }
-
-// agent_ptr pod_game::generate_refbot() {
-//   return simple_pod_agent(evaluator_ptr(new simple_pod_evaluator));
-// }
 
 std::vector<choice_ptr> pod_game::generate_choices(agent_ptr p_base) {
   pod_agent::ptr p = static_pointer_cast<pod_agent>(p_base);
@@ -308,7 +298,7 @@ vec pod_game::vectorize_state(int pid) const {
   auto add_pod = [this, a, &x, &idx](pod_data b) {
     auto relad = [&](point p) {
       x[idx++] = angle_difference(point_angle(p - a.x), a.a);
-      x[idx++] = distance(a.x, p);
+      x[idx++] = distance(a.x, p) / 1000;
     };
 
     relad(b.x);                                          // 5-6
@@ -350,6 +340,16 @@ vec pod_game::vectorize_choice(choice_ptr c_base, int pid) const {
   return {c->angle, c->thrust, (double)c->boost, (double)c->shield};
 }
 
+choice_ptr pod_game::unvectorize_choice(vec x) const {
+  assert(x.size() == 4);
+  shared_ptr<pod_choice> c(new pod_choice);
+  c->angle = x[0];
+  c->thrust = x[1];
+  c->boost = x[2];
+  c->shield = x[3];
+  return c;
+}
+
 // protected members
 
 double pod_game::pod_distance_travelled(int pid) {
@@ -381,12 +381,12 @@ hm<int, double> pod_game::ttable() {
   return ttab;
 }
 
-// table of heuristic score for all players
-hm<int, double> pod_game::htable() {
-  hm<int, double> ttab, htab;
-  ttab = ttable();
-  for (auto p : players) htab[p.first] = ttab[p.second->team];
-  return htab;
-}
+// // table of heuristic score for all players
+// hm<int, double> pod_game::htable() {
+//   hm<int, double> ttab, htab;
+//   ttab = ttable();
+//   for (auto p : players) htab[p.first] = ttab[p.second->team];
+//   return htab;
+// }
 
 point pod_game::get_checkpoint(int idx) const { return checkpoint.at(modulo(idx, (int)checkpoint.size())); }

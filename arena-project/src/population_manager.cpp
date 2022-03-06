@@ -138,6 +138,7 @@ void population_manager::evolve(game_generator_ptr gg) {
     }
 
     if (idx >= 0) {
+      cout << "PM: reset refbot!" << endl;
       refbot = retirement[idx];
 
       for (auto a : pop) {
@@ -149,7 +150,11 @@ void population_manager::evolve(game_generator_ptr gg) {
         // and are expeccted to win 50% against new refbot,
         // we heuristically expect all agents to win half as often against the new refbot,
         // therefore old memory weights should be halved to compare fairly to new memories.
-        a->eval->reset_memory_weights(0.5);
+
+        double w0 = mem_weight(a->score_simple.value_ma, a->score_refbot.value_ma);      // weight memory by current performance
+        double w1 = mem_weight(a->score_simple.value_ma, a->score_refbot.value_ma / 2);  // weight memory by current performance
+
+        a->eval->reset_memory_weights(w1 / w0);
       }
     }
   }
