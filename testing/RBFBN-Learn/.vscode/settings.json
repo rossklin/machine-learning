@@ -1,0 +1,10 @@
+{
+  "files.associations": {
+    "*.module": "php",
+    "*.inc": "php",
+    "*.install": "php",
+    "*.rmd": "markdown",
+    "ostream": "cpp",
+    "chrono": "cpp"
+  }
+}

@@ -1,0 +1,13 @@
+Let's make a Bayesian network for an AI agent (ie a statistical model on functional form which is reinforcable), where:
+- conditional probabilities are estimated with some nonparametric kernel estimator or radial basis function model
+- OR actually just some parametric representation that is general and easy to update, such as piecewise linear
+- the input variables are the state and the choice
+- the output variable measures "goodness" (?)
+- the network is constructed by recursively partitioning the variables and adding latent variables conditioned on each partition, finally selecting an output variable
+- the estimators are initialized with a flat distribution
+- the output is computed by sampling a "temporary" point from each estimator
+- on relatively positive feedback each temporary point is given a weighting depending on the ratio between given feedback and average recent feedback
+- on relatively negative feedback temporary points are removed
+- latent variables are removed if they no longer affect the distribution of any children despite many data points
+- latent variables are added if the expected output does not depend on the input despite many data points
+- possibly remember how old the temporary points are, so major reinforcements can affect older points as well?
