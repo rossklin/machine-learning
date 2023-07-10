@@ -1,6 +1,9 @@
 #include <vector>
 #include <random>
 #include <map>
+#include <set>
+#include <algorithm>
+#include <iostream>
 
 using namespace std;
 
@@ -27,7 +30,7 @@ struct Node
 {
     // The state of the node is it's energy buffer and iterations passed since it last fired
     float energy;
-    int time_since_fired;
+    set<int> fired_at;
 
     // Track parents to avoid work and hassle
     vector<int> parents;
@@ -35,15 +38,59 @@ struct Node
     Node()
     {
         energy = 0;
-        time_since_fired = 0;
     }
 };
 
 struct Brain
 {
     int n;
+    int d_in, d_out;
+    int connectivity;
+    int t;
     vector<Node> nodes;
     vector<map<int, float>> edges;
+
+    // Return true if each node in range1 is connected to any node in range2
+    bool test_connectivity(pair<int, int> range1, pair<int, int> range2)
+    {
+        // Implementation of flood fill
+        set<int> flooded, horizon;
+        for (int i = range1.first; i <= range1.second; i++)
+        {
+            // Start with node i as the horizon
+            bool is_connected = false;
+            horizon.insert(i);
+            while (horizon.size())
+            {
+                int j = *horizon.begin();
+                if (j >= range2.first && j <= range2.second)
+                {
+                    // This node (i) is connected to range2!
+                    is_connected = true;
+                    break;
+                }
+                horizon.erase(j);
+                flooded.insert(j);
+
+                for (auto x : edges[j])
+                {
+                    horizon.insert(x.first);
+                }
+
+                // Calculate the set difference manually because the "set_difference" function doesn't work for sets lol
+                for (auto k : flooded)
+                {
+                    horizon.erase(k);
+                }
+            }
+            if (!is_connected)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     // Create initial edges, between one and connectivity edges per node, where whidth sums to 1.
     void create_edges(int connectivity)
@@ -81,10 +128,15 @@ struct Brain
     }
 
     // Run one increment of the simulation
+    // TODO We may need to add and/or leak some energy for energy stability
+    // Or modify the firing so we don't loose energy
     void update()
     {
         vector<Node> node_buf = nodes;
         vector<float> energy_transmitted(n, 0);
+
+        // Increment time here, so the fired_at timestamps match the output state after the update
+        t++;
 
         // Identify fired nodes, gather transmitted energy and reset energ on fired nodes
         for (int i = 0; i < n; i++)
@@ -97,7 +149,7 @@ struct Brain
                     energy_transmitted[x.first] += x.second;
                 }
                 node_buf[i].energy = 0;
-                node_buf[i].time_since_fired = 0;
+                node_buf[i].fired_at.insert(t);
             }
         }
 
@@ -105,7 +157,6 @@ struct Brain
         for (int i = 0; i < n; i++)
         {
             node_buf[i].energy += energy_transmitted[i];
-            node_buf[i].time_since_fired++;
         }
 
         // Update state
@@ -113,80 +164,111 @@ struct Brain
     }
 
     // Give feedback
+    // Positive:
+    // For output nodes that fired, increase the width of edges from ancestors that did fire
+    // For output nodes that did not fire, decrease the width of edges from ancestors that did fire
+    // Negative:
+    // For output nodes that fired, decrease the width of edges from ancestors that did fire
+    // For output nodes that did not fire, increase the width of edges from ancestors that did fire (and intermediate?)
     void feedback(float r)
     {
+        if (r == 0)
+        {
+            cout << "Feedback 0, nothing to do!" << endl;
+            return;
+        }
+
         const float chill_factor = 0.1;
         const float gamma = 0.5;
+        // Loop over output nodes
 
-        // Apply feedback to edges
-        for (int i = 0; i < n; i++)
+        for (int i = d_in; i < d_out; i++)
         {
-            // Don't go to far back in time
-            if (nodes[i].time_since_fired > 4)
+            const bool output_did_fire = nodes[i].fired_at.contains(t);
+            const int sign = (2 * output_did_fire - 1) * ((r > 0) - (r < 0)); // 1 = increase energy, -1 = reduce energy
+            set<int> horizon = {i};
+            set<int> flooded;
+            int depth = 0;
+
+            // Check that I know how loop scopes work
+            if (flooded.size() > 0)
             {
-                continue;
+                throw runtime_error("You don't know how loop scopes work!");
             }
 
-            // We associate this node to the feedback based on how recently it fired
-            float association_factor = pow(gamma, nodes[i].time_since_fired);
-
-            // We associate the parents of this node to it's being fired based on how recently they fired before that
-            for (auto j : nodes[i].parents)
+            // BFS so we can track what level we're at and scale the "blame" (association)
+            while (horizon.size() > 0 && depth < 5)
             {
-                const float gamma2 = 0.5;
-                const int t_diff = nodes[j].time_since_fired - nodes[i].time_since_fired;
-
-                // The parent only affected the current node if it fired at an earlier time
-                if (t_diff < 1)
+                set<int> horizon_buf;
+                depth++;
+                for (auto j : horizon)
                 {
-                    continue;
+                    flooded.insert(j);
+                    // Calculate which time points could have affected the firing of node j
+                    set<int> possible_times;
+                    for (int test = t - depth; test > t - depth - 5; t--)
+                    {
+                        possible_times.insert(test);
+                        if (nodes[j].fired_at.contains(test))
+                        {
+                            break;
+                        }
+                    }
+
+                    // Process edges to node j, then add parents to horizon
+                    for (auto k : nodes[j].parents)
+                    {
+                        // Check if the node did fire at the correct time
+                        bool fired_at_relevant_time = false;
+                        for (auto test : possible_times)
+                        {
+                            if (nodes[k].fired_at.contains(test))
+                            {
+                                fired_at_relevant_time = true;
+                                break;
+                            }
+                        }
+
+                        // Not sure if this condition is needed, maybe just update all ancestor edges regardless?
+                        if (fired_at_relevant_time)
+                        {
+                            // Process edge from parent k to node j: make it send more/less energy based on sign
+                            edges[j][k] = chill_factor * pow(gamma, depth) * fabs(r) * sign + edges[j][k];
+                        }
+
+                        // Add parents to horizon regardless to continue searching for an ancestor that did fire
+                        horizon_buf.insert(nodes[k].parents.begin(), nodes[k].parents.end());
+                    }
                 }
 
-                // Don't go to for back in time here either
-                if (t_diff > 4)
+                // Update horizon
+                for (auto j : flooded)
                 {
-                    continue;
+                    horizon_buf.erase(j);
                 }
-
-                const float parent_association = pow(gamma2, t_diff);
-
-                // We should safely assume that if the parents of i contain j then the edges of j contain i
-                // We increase or decrease the width of edges pointing to this node based on the feedback
-                edges[j][i] += chill_factor * association_factor * parent_association * r;
+                horizon.swap(horizon_buf);
             }
         }
 
-        // Remove no width edges and re-normalize
-        for (int i = 0; i < n; i++)
+        // TODO add/remove edges
+
+        // TODO renormalize edges
+    }
+
+    void initialize()
+    {
+        pair<int, int> range1 = {0, d_in - 1};
+        pair<int, int> range2 = {d_in, d_in + d_out - 1};
+        int attempts = 0;
+        do
         {
-            int edges_lost = 0;
-            auto buf = edges[i];
-            for (auto x : edges[i])
+            create_edges(connectivity);
+            if (attempts++ > 100)
             {
-                if (x.second <= 0)
-                {
-                    // We (node i) are no longer a parent of the targeted node (x.first)
-                    erase_if(nodes[x.first].parents, [i](const int &j)
-                             { return i == j; });
-                    buf.erase(x.first);
-                    edges_lost++;
-                }
+                throw runtime_error("100 attempts reached!");
             }
-            edges[i] = buf;
-
-            // Compensate for edges lost somehow?
-
-            // Re-normalize the edges
-            float wsum = 0;
-            for (auto y : edges[i])
-            {
-                wsum += y.second;
-            }
-            for (auto y : edges[i])
-            {
-                edges[i][y.second] /= wsum;
-            }
-        }
+            cout << "Create edges: attempt " << attempts << endl;
+        } while (!(test_connectivity(range1, range2) && test_connectivity(range2, range1)));
     }
 
     /* Idea
@@ -197,20 +279,26 @@ struct Brain
     Output is calculated by running some number of iterations after a new input ..?
     */
 
-    Brain(int _n, int connectivity)
+    Brain(int _n, int _connectivity, int _d_in, int _d_out)
     {
-        if (n < 2)
+        if (_n < 2)
         {
-            throw "Must use at least 2 nodes!";
+            throw runtime_error("Must use at least two nodes!");
         }
 
         n = _n;
+        d_in = _d_in;
+        d_out = _d_out;
+        connectivity = _connectivity;
         nodes.resize(n);
         edges.resize(n);
-        create_edges(connectivity);
     }
 };
 
 int main(int argc, char **argv)
 {
+    Brain b(10, 3, 2, 2);
+    b.initialize();
+    cout << "Success!" << endl;
+    return 0;
 }
