@@ -60,17 +60,18 @@ struct Brain
     vector<map<int, float>> edges;
 
     // Return true if each node in range1 is connected to any node in range2 and each node in range2 is reachable from at least one node in range1
-    bool test_connectivity(pair<int, int> range1, pair<int, int> range2, int max_depth) const
+    set<int> find_disconnected_nodes(pair<int, int> range1, pair<int, int> range2, int max_depth = 0) const
     {
         // Implementation of flood fill
-        set<int> flooded, horizon;
+        set<int> flooded, horizon, not_connected;
         for (int i = range1.first; i <= range1.second; i++)
         {
             // Start with node i as the horizon
             bool is_connected = false;
             horizon.insert(i);
+            flooded.clear();
             int depth = 0;
-            while (horizon.size() && depth++ < max_depth)
+            while (horizon.size() && (max_depth == 0 || depth++ < max_depth))
             {
                 set<int> horizon_buf;
                 for (auto j : horizon)
@@ -98,7 +99,7 @@ struct Brain
 
             if (!is_connected)
             {
-                return false; // Node i in range1 is not connected to range2
+                not_connected.insert(i); // Node i in range1 is not connected to range2
             }
         }
 
@@ -107,11 +108,16 @@ struct Brain
         {
             if (!flooded.contains(i))
             {
-                return false;
+                not_connected.insert(i);
             }
         }
 
-        return true;
+        return not_connected;
+    }
+
+    bool test_connectivity(pair<int, int> range1, pair<int, int> range2, int max_depth = 0) const
+    {
+        return find_disconnected_nodes(range1, range2, max_depth).empty();
     }
 
     // Normalize edge widths to sum to 1 for energy conservation
@@ -151,17 +157,54 @@ struct Brain
         int count = 0;
         do
         {
-            test_target = random_int(0, n - 1);
+            test_target = random_int(d_in, n - 1);
             if (count++ > 1e4)
             {
                 throw runtime_error("Failed to select random edge target!");
             }
-        } while (test_target == self || test_target < d_in || edges[self].contains(test_target));
+        } while (test_target == self || edges[self].contains(test_target));
         return test_target;
     }
 
+    void add_edge(int i, int j)
+    {
+        const float w = random_float(0, 1);
+        edges[i][j] = w;
+        nodes[j].parents.push_back(i);
+    }
+
+    int random_walk(pair<int, int> start_range, int steps, function<vector<int>(int)> option_selector) const
+    {
+        bool success;
+        int counter = 0;
+        int target;
+        do
+        {
+            if (counter++ > 100)
+            {
+                throw runtime_error("Failed to find valid connector path for disconnected input/output node!");
+            }
+
+            target = random_int(start_range.first, start_range.second);
+            success = true;
+            for (int j = 0; j < steps; j++)
+            {
+                vector<int> options = option_selector(target);
+
+                if (options.empty())
+                {
+                    success = false;
+                    break;
+                }
+                target = options[random_int(0, options.size() - 1)];
+            }
+        } while (!success);
+        return target;
+    }
+
     // Create initial edges, between one and connectivity edges per node, where whidth sums to 1.
-    void create_edges(int connectivity)
+    // Guarantee all nodes are reachable from input in the end
+    void create_edges(int connectivity, int connection_depth)
     {
         // In case of re-run, clear the parent index
         for (auto &n : nodes)
@@ -178,17 +221,86 @@ struct Brain
             }
 
             const int n_connect = random_int(1, connectivity);
-            float wsum = 0;
             edges[i].clear();
             for (int j = 0; j < n_connect; j++)
             {
-                int test_target = random_edge_target(i);
-                const float w = random_float(0, 1);
-                edges[i][test_target] = w;
-                nodes[test_target].parents.push_back(i);
-                wsum += w;
+                add_edge(i, random_edge_target(i));
             }
         }
+
+        // Connect all non-connected nodes to a random connected node
+        set<int> not_connected = find_disconnected_nodes(make_pair(0, d_in - 1), make_pair(d_in, n - 1));
+
+        // Sanity check - should not be possible!
+        if (not_connected.size() >= n - d_in)
+        {
+            throw runtime_error("Create edges: all nodes were disconnected!");
+        }
+
+        for (auto i : not_connected)
+        {
+            // Each input node should have at least one edge to a non-input node
+            if (i < d_in)
+            {
+
+                cout << "An input node " << i << " did not have an edge to a non-input node (total " << edges[i].size() << " edges)!" << endl;
+                for (auto x : edges[i])
+                {
+                    cout << x.first << ",";
+                }
+                cout << endl;
+                throw runtime_error("No edge from input node!");
+            }
+
+            // Select a parent that is connected, that is not self, not an output node and not a child node
+            int new_parent;
+            do
+            {
+                new_parent = random_int(0, n - 1);
+            } while (not_connected.contains(new_parent) || (new_parent >= d_in && new_parent < d_in + d_out) || new_parent == i || edges[i].contains(new_parent));
+
+            add_edge(new_parent, i);
+        }
+
+        // Fix input nodes not connected to output nodes
+        not_connected = find_disconnected_nodes(make_pair(0, d_in - 1), make_pair(d_in, d_in + d_out - 1), connection_depth);
+        for (auto i : not_connected)
+        {
+            if (i < d_in)
+            {
+                // Input node that could not reach output
+
+                // Random walk backwards from a random output - there likely exists at least one output node that has a backwards path that does not end prematurely at an input
+                // A case which fails could be when all input nodes are connected to one output node and one input node connects to all output nodes
+                int target = random_walk(make_pair(d_in, d_in + d_out - 1), connection_depth - 1, [this](int j)
+                                         {
+                    vector<int> options = nodes[j].parents;
+                    erase_if(options, [this](int k)
+                        { return k < d_in; });
+                    return options; });
+
+                // Connect to this node which has a known path to the output
+                add_edge(i, target);
+            }
+            else
+            {
+                // Output node that was not reached by input
+                // Random walk forwards from a random input without hitting an output
+                int target = random_walk(make_pair(0, d_in - 1), connection_depth - 1, [this](int j)
+                                         {
+                    vector<int> options;
+                    for (auto x : edges[j]) {
+                        if (x.first < d_in || x.first >= d_in + d_out) {
+                            options.push_back(x.first);
+                        }
+                    }
+                    return options; });
+
+                // Connect to this node which has a known path from the input
+                add_edge(target, i);
+            }
+        }
+
         normalize_edges();
     }
 
@@ -416,6 +528,8 @@ struct Brain
                 }
 #endif
             }
+
+            // TODO help inactive nodes by connecting them to an active node or shifting some energy uptake to them
         }
 
         // After modifying edges, we need to normalize them again
@@ -427,20 +541,35 @@ struct Brain
         pair<int, int> input_range = {0, d_in - 1};
         pair<int, int> output_range = {d_in, d_in + d_out - 1};
         int attempts = 0;
+
+        // Require input connected to output in connection_depth steps, and connected to each other node in any number of steps
+        bool failed;
         do
         {
-            create_edges(connectivity);
-            if (attempts++ > 100)
+            if (attempts++ > 1000)
             {
-                throw runtime_error("100 attempts reached!");
+                throw runtime_error("1000 attempts reached!");
             }
+
+            failed = false;
+            try
+            {
+                create_edges(connectivity, connection_depth);
+            }
+            catch (...)
+            {
+                cout << "Create edges failed!" << endl;
+                failed = true;
+            }
+
 #ifdef VERBOSE
             {
 
                 cout << "Create edges: attempt " << attempts << endl;
             }
 #endif
-        } while (!(test_connectivity(input_range, output_range, connection_depth)));
+            // This is just a sanity check as create_edges should guarantee correct connections
+        } while (!(failed || (test_connectivity(input_range, output_range, connection_depth) && test_connectivity(input_range, make_pair(d_in, n - 1)))));
 
         for (int i = 0; i < n; i++)
         {
