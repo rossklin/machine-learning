@@ -143,14 +143,14 @@ struct Brain
 #endif
     }
 
-    // Select a random edge target that is not self and also not an input node
+    // Select a random new edge target that is not self and also not an input node
     int random_edge_target(int self) const
     {
         int test_target;
         do
         {
             test_target = random_int(0, n - 1);
-        } while (test_target == self || test_target < d_in);
+        } while (test_target == self || test_target < d_in || edges[self].contains(test_target));
         return test_target;
     }
 
