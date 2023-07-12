@@ -505,18 +505,24 @@ int main(int argc, char **argv)
     int d_in = 2, d_out = 2, con_depth = 3;
     int n = atoi(argv[1]), epochs = atoi(argv[2]);
     int n_threads = 6;
+    int test_id_seed = 0;
     omp_set_num_threads(n_threads);
 
-    cout << "test_id, iteration, test, rolling_rate" << endl;
-#pragma omp parallel for
-    for (int test_id = 0; test_id < n_threads; test_id++)
+    cout << "thread_id, test_id, iteration, test, rolling_rate" << endl;
+#pragma omp parallel
+    while (true)
     {
+        int test_id;
+#pragma omp critical
+        {
+            test_id = test_id_seed++;
+        }
 
-        Brain b(10, 3, d_in, d_out, 20);
+        Brain b(n, 3, d_in, d_out, 20);
         b.initialize(con_depth);
-        float hit_rate = 0.5;
+        float hit_rate = 0.25;
 
-        for (int i = 0; i < epochs; i++)
+        for (int i = 1; i < epochs; i++)
         {
             vector<bool> input = get_target(d_in, i);
             b.set_input(input);
@@ -531,10 +537,16 @@ int main(int argc, char **argv)
             }
             b.feedback(2 * test - 1);
 
-            hit_rate = 0.98 * hit_rate + 0.02 * test;
+            hit_rate = 0.998 * hit_rate + 0.002 * test;
 #pragma omp critical
             {
-                cout << test_id << ", " << i << ", " << test << ", " << hit_rate << endl;
+                cout << omp_get_thread_num() << ", " << test_id << ", " << i << ", " << test << ", " << hit_rate << endl;
+            }
+
+            if ((i % 200 == 0) && hit_rate < 0.25 + 0.00002 * i)
+            {
+                // Not performing well enough, start over
+                break;
             }
         }
     }
