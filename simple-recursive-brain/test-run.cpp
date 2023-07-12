@@ -59,7 +59,7 @@ struct Brain
     vector<map<int, float>> edges;
 
     // Return true if each node in range1 is connected to any node in range2 and each node in range2 is reachable from at least one node in range1
-    bool test_connectivity(pair<int, int> range1, pair<int, int> range2)
+    bool test_connectivity(pair<int, int> range1, pair<int, int> range2, int max_depth) const
     {
         // Implementation of flood fill
         set<int> flooded, horizon;
@@ -68,31 +68,36 @@ struct Brain
             // Start with node i as the horizon
             bool is_connected = false;
             horizon.insert(i);
-            while (horizon.size())
+            int depth = 0;
+            while (horizon.size() && depth++ < max_depth)
             {
-                int j = *horizon.begin();
+                set<int> horizon_buf;
+                for (auto j : horizon)
+                {
                 if (j >= range2.first && j <= range2.second)
                 {
                     // This node (i) is connected to range2!
                     is_connected = true;
                 }
-                horizon.erase(j);
                 flooded.insert(j);
 
                 for (auto x : edges[j])
                 {
-                    horizon.insert(x.first);
+                        horizon_buf.insert(x.first);
                 }
 
                 // Calculate the set difference manually because the "set_difference" function doesn't work for sets lol
                 for (auto k : flooded)
                 {
-                    horizon.erase(k);
+                        horizon_buf.erase(k);
+                    }
                 }
+                swap(horizon, horizon_buf);
             }
+
             if (!is_connected)
             {
-                return false;
+                return false; // Node i in range1 is not connected to range2
             }
         }
 
