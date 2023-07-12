@@ -116,6 +116,7 @@ struct Brain
     // Normalize edge widths to sum to 1 for energy conservation
     void normalize_edges()
     {
+        vector<float> x(n);
         for (int i = 0; i < n; i++)
         {
             float wsum = 0;
@@ -124,12 +125,22 @@ struct Brain
             {
                 wsum += x.second;
             }
+            x[i] = wsum;
 
             for (auto x : edges[i])
             {
                 edges[i][x.first] = x.second / wsum;
             }
         }
+
+// Debug
+#ifdef VERBOSE
+        {
+            x.erase(x.begin() + d_in, x.begin() + d_in + d_out);
+            sort(x.begin(), x.end());
+            cout << "Normalizing: lowest = " << x.front() << ", highest = " << x.back() << endl;
+        }
+#endif
     }
 
     // Select a random edge target that is not self and also not an input node
@@ -252,13 +263,27 @@ struct Brain
 
         if (time_of_output - time > 10 || time < 1)
         {
+#ifdef VERBOSE
+        {
             cout << prefix << "Reached end of time on node " << i << endl;
+            }
+#endif
             return;
         }
 
-        cout << prefix << "Testing " << i << " at time " << time << endl;
-
         const map<int, int> fired_parents = get_fired_parents_at_time(i, time);
+
+#ifdef VERBOSE
+        {
+            cout << prefix << "Testing " << i << " at time " << time << ": parents ";
+            for (auto j : nodes[i].parents)
+            {
+                cout << j << "[" << (fired_parents.contains(j) ? "F" : "O") << "], ";
+            }
+            cout << endl;
+        }
+#endif
+
         for (auto j : fired_parents)
         {
             // Sanity check
@@ -267,7 +292,14 @@ struct Brain
                 throw logic_error("Parent fired at time geq current time!");
             }
 
-            edges[j.first][i] = chill_factor * pow(gamma, time_of_output - time) * fabs(r) * sign + edges[j.first][i];
+            const float amount = chill_factor * pow(gamma, time_of_output - time) * fabs(r) * sign;
+            edges[j.first][i] = amount + edges[j.first][i];
+#ifdef VERBOSE
+            {
+
+                cout << prefix << "Modified edge from " << j.first << " to " << i << " by " << amount << " to " << edges[j.first][i] << endl;
+            }
+#endif
             feedback_recursively(j.first, r, sign, j.second, time_of_output, false); // Always stop searching non-fired ancestors if there are fired parents
         }
 
@@ -292,11 +324,20 @@ struct Brain
     {
         if (r == 0)
         {
+#ifdef VERBOSE
+            {
+
             cout << "Feedback 0, nothing to do!" << endl;
+            }
+#endif
             return;
         }
 
+#ifdef VERBOSE
+        {
         cout << "Giving feedback " << r << " at time " << t << endl;
+        }
+#endif
 
         // Loop over output nodes
 
@@ -304,11 +345,21 @@ struct Brain
         {
             const bool output_did_fire = nodes[i].fired_at_set().contains(t);
             const int sign = (2 * output_did_fire - 1) * ((r > 0) - (r < 0)); // 1 = increase energy, -1 = reduce energy
+#ifdef VERBOSE
+            {
+
             cout << "Starting recursive feedback for output node " << (i - d_in + 1) << " which " << (output_did_fire ? "did" : "did not") << " fire, giving sign " << sign << endl;
+            }
+#endif
             feedback_recursively(i, r, sign, t, t, !output_did_fire);
         }
 
+#ifdef VERBOSE
+        {
+
         cout << "Starting edge cleanup" << endl;
+        }
+#endif
 
         for (int i = 0; i < n; i++)
         {
@@ -329,7 +380,12 @@ struct Brain
                              { return j == i; });
 
                     edges[i].erase(x.first);
+#ifdef VERBOSE
+                    {
+
                     cout << "Removing edge from " << i << " to " << x.first << endl;
+                }
+#endif
                 }
             }
 
@@ -347,7 +403,12 @@ struct Brain
                 const float w = random_float(0, 1);
                 edges[i][test_target] = w;
                 nodes[test_target].parents.push_back(i);
+#ifdef VERBOSE
+                {
+
                 cout << "Added edge from " << i << " to " << test_target << " with width " << edges[i][test_target] << endl;
+            }
+#endif
             }
         }
 
@@ -367,8 +428,12 @@ struct Brain
             {
                 throw runtime_error("100 attempts reached!");
             }
+#ifdef VERBOSE
+            {
+
             cout << "Create edges: attempt " << attempts << endl;
-        } while (!(test_connectivity(input_range, output_range)));
+            }
+#endif
 
         for (int i = 0; i < n; i++)
         {
