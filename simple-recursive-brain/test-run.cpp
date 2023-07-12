@@ -4,6 +4,7 @@
 #include <set>
 #include <algorithm>
 #include <iostream>
+#include <omp.h>
 
 using namespace std;
 
@@ -74,21 +75,21 @@ struct Brain
                 set<int> horizon_buf;
                 for (auto j : horizon)
                 {
-                if (j >= range2.first && j <= range2.second)
-                {
-                    // This node (i) is connected to range2!
-                    is_connected = true;
-                }
-                flooded.insert(j);
+                    if (j >= range2.first && j <= range2.second)
+                    {
+                        // This node (i) is connected to range2!
+                        is_connected = true;
+                    }
+                    flooded.insert(j);
 
-                for (auto x : edges[j])
-                {
+                    for (auto x : edges[j])
+                    {
                         horizon_buf.insert(x.first);
-                }
+                    }
 
-                // Calculate the set difference manually because the "set_difference" function doesn't work for sets lol
-                for (auto k : flooded)
-                {
+                    // Calculate the set difference manually because the "set_difference" function doesn't work for sets lol
+                    for (auto k : flooded)
+                    {
                         horizon_buf.erase(k);
                     }
                 }
@@ -147,9 +148,14 @@ struct Brain
     int random_edge_target(int self) const
     {
         int test_target;
+        int count = 0;
         do
         {
             test_target = random_int(0, n - 1);
+            if (count++ > 1e4)
+            {
+                throw runtime_error("Failed to select random edge target!");
+            }
         } while (test_target == self || test_target < d_in || edges[self].contains(test_target));
         return test_target;
     }
@@ -257,15 +263,15 @@ struct Brain
 
     void feedback_recursively(int i, float r, int sign, int time, int time_of_output, bool search_non_fired_ancestors)
     {
-        const float chill_factor = 0.1;
+        const float chill_factor = 0.01;
         const float gamma = 0.5;
         const string prefix = string(time_of_output - time, '>') + " $ ";
 
         if (time_of_output - time > 10 || time < 1)
         {
 #ifdef VERBOSE
-        {
-            cout << prefix << "Reached end of time on node " << i << endl;
+            {
+                cout << prefix << "Reached end of time on node " << i << endl;
             }
 #endif
             return;
@@ -327,7 +333,7 @@ struct Brain
 #ifdef VERBOSE
             {
 
-            cout << "Feedback 0, nothing to do!" << endl;
+                cout << "Feedback 0, nothing to do!" << endl;
             }
 #endif
             return;
@@ -335,7 +341,7 @@ struct Brain
 
 #ifdef VERBOSE
         {
-        cout << "Giving feedback " << r << " at time " << t << endl;
+            cout << "Giving feedback " << r << " at time " << t << endl;
         }
 #endif
 
@@ -348,7 +354,7 @@ struct Brain
 #ifdef VERBOSE
             {
 
-            cout << "Starting recursive feedback for output node " << (i - d_in + 1) << " which " << (output_did_fire ? "did" : "did not") << " fire, giving sign " << sign << endl;
+                cout << "Starting recursive feedback for output node " << (i - d_in + 1) << " which " << (output_did_fire ? "did" : "did not") << " fire, giving sign " << sign << endl;
             }
 #endif
             feedback_recursively(i, r, sign, t, t, !output_did_fire);
@@ -357,7 +363,7 @@ struct Brain
 #ifdef VERBOSE
         {
 
-        cout << "Starting edge cleanup" << endl;
+            cout << "Starting edge cleanup" << endl;
         }
 #endif
 
@@ -383,8 +389,8 @@ struct Brain
 #ifdef VERBOSE
                     {
 
-                    cout << "Removing edge from " << i << " to " << x.first << endl;
-                }
+                        cout << "Removing edge from " << i << " to " << x.first << endl;
+                    }
 #endif
                 }
             }
@@ -406,8 +412,8 @@ struct Brain
 #ifdef VERBOSE
                 {
 
-                cout << "Added edge from " << i << " to " << test_target << " with width " << edges[i][test_target] << endl;
-            }
+                    cout << "Added edge from " << i << " to " << test_target << " with width " << edges[i][test_target] << endl;
+                }
 #endif
             }
         }
@@ -416,7 +422,7 @@ struct Brain
         normalize_edges();
     }
 
-    void initialize()
+    void initialize(int connection_depth)
     {
         pair<int, int> input_range = {0, d_in - 1};
         pair<int, int> output_range = {d_in, d_in + d_out - 1};
@@ -431,9 +437,10 @@ struct Brain
 #ifdef VERBOSE
             {
 
-            cout << "Create edges: attempt " << attempts << endl;
+                cout << "Create edges: attempt " << attempts << endl;
             }
 #endif
+        } while (!(test_connectivity(input_range, output_range, connection_depth)));
 
         for (int i = 0; i < n; i++)
         {
@@ -449,6 +456,14 @@ struct Brain
             res[i - d_in] = nodes[i].fired_at_set().contains(t);
         }
         return res;
+    }
+
+    void set_input(vector<bool> x)
+    {
+        for (int k = 0; k < d_in; k++)
+        {
+            nodes[k].energy = x[k];
+        }
     }
 
     /* Idea
@@ -477,46 +492,52 @@ struct Brain
     }
 };
 
+vector<bool> get_target(int d_in, int i)
+{
+    vector<bool> input(d_in, false);
+    int target = (i / 10) % d_in;
+    input[target] = true;
+    return input;
+}
+
 int main(int argc, char **argv)
 {
-    Brain b(10, 3, 2, 2, 20);
-    b.initialize();
-    for (int i = 0; i < 5; i++)
+    int d_in = 2, d_out = 2, con_depth = 3;
+    int n = atoi(argv[1]), epochs = atoi(argv[2]);
+    int n_threads = 6;
+    omp_set_num_threads(n_threads);
+
+    cout << "test_id, iteration, test, rolling_rate" << endl;
+#pragma omp parallel for
+    for (int test_id = 0; test_id < n_threads; test_id++)
     {
-        // Test with random input
-        for (int j = 0; j < b.d_in; j++)
+
+        Brain b(10, 3, d_in, d_out, 20);
+        b.initialize(con_depth);
+        float hit_rate = 0.5;
+
+        for (int i = 0; i < epochs; i++)
         {
-            b.nodes[j].energy = random_float(0, 2);
-        }
-        b.update();
-        cout << "Step " << i << ": output: ";
-        for (auto r : b.get_output())
-        {
+            vector<bool> input = get_target(d_in, i);
+            b.set_input(input);
+            b.update();
+
+            // Train at predicting input
+            vector<bool> output = get_target(d_in, i + 1);
+            bool test = true;
+            for (int j = 0; j < d_in; j++)
             {
-                cout << r << ", ";
+                test = test && (b.nodes[d_in + j].fired_at_set().contains(b.t) == output[j]);
+            }
+            b.feedback(2 * test - 1);
+
+            hit_rate = 0.98 * hit_rate + 0.02 * test;
+#pragma omp critical
+            {
+                cout << test_id << ", " << i << ", " << test << ", " << hit_rate << endl;
             }
         }
-        cout << endl;
     }
-    b.feedback(0.2);
-    for (int i = 0; i < 5; i++)
-    {
-        // Test with random input
-        for (int j = 0; j < b.d_in; j++)
-        {
-            b.nodes[j].energy = random_float(0, 2);
-        }
-        b.update();
-        cout << "Step " << i << ": output: ";
-        for (auto r : b.get_output())
-        {
-            {
-                cout << r << ", ";
-            }
-        }
-        cout << endl;
-    }
-    b.feedback(-0.2);
-    cout << "Success!" << endl;
+
     return 0;
 }
