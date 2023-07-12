@@ -42,7 +42,7 @@ struct Node
         energy_uptake = 0;
     }
 
-    set<int> fired_at_set()
+    set<int> fired_at_set() const
     {
         return set<int>(fired_at.begin(), fired_at.end());
     }
@@ -133,7 +133,7 @@ struct Brain
     }
 
     // Select a random edge target that is not self and also not an input node
-    int random_edge_target(int self)
+    int random_edge_target(int self) const
     {
         int test_target;
         do
@@ -214,7 +214,7 @@ struct Brain
 
     // Calculate which parents of node j fired (and when) during the time period between the last time node j fired before _t and _t
     // These are the parents which contributed energy to the next time node j fired after time _t
-    map<int, int> get_fired_parents_at_time(int j, int _t)
+    map<int, int> get_fired_parents_at_time(int j, int _t) const
     {
         map<int, int> fired_parents;
         vector<int> possible_times; // anti-chronological order
@@ -376,7 +376,7 @@ struct Brain
         }
     }
 
-    vector<bool> get_output()
+    vector<bool> get_output() const
     {
         vector<bool> res(d_out);
         for (int i = d_in; i < d_in + d_out; i++)
