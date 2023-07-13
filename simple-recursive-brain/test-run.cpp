@@ -646,7 +646,7 @@ int main(int argc, char **argv)
 {
     int d_in = 6, d_out = 4, con_depth = 4;
     int n = atoi(argv[1]), epochs = atoi(argv[2]);
-    int n_threads = 6;
+    int n_threads = argc == 4 ? atoi(argv[3]) : 6;
     int test_id_seed = 0;
     omp_set_num_threads(n_threads);
 
