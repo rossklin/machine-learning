@@ -27,11 +27,25 @@ float random_float(float a, float b)
     return distrib(get_engine());
 }
 
+struct Edge
+{
+    float width;
+    bool is_inhibitor;
+
+    int get_type_sign() const
+    {
+        return is_inhibitor ? -1 : 1;
+    }
+};
+
 struct Node
 {
     // The state of the node is it's energy buffer and iterations passed since it last fired
     float energy;
+    float inhibition;
     float energy_uptake;
+    float firepower;
+    float modification_tracker;
     vector<int> fired_at;
 
     // Track parents to avoid work and hassle
@@ -40,7 +54,10 @@ struct Node
     Node()
     {
         energy = 0;
+        inhibition = 0;
         energy_uptake = 0;
+        firepower = 0;
+        modification_tracker = 0;
     }
 
     set<int> fired_at_set() const
@@ -57,7 +74,7 @@ struct Brain
     int t;
     int track_length;
     vector<Node> nodes;
-    vector<map<int, float>> edges;
+    vector<map<int, Edge>> edges;
 
     // Return true if each node in range1 is connected to any node in range2 and each node in range2 is reachable from at least one node in range1
     set<int> find_disconnected_nodes(pair<int, int> range1, pair<int, int> range2, int max_depth = 0) const
@@ -130,13 +147,13 @@ struct Brain
 
             for (auto x : edges[i])
             {
-                wsum += x.second;
+                wsum += x.second.width;
             }
             x[i] = wsum;
 
             for (auto x : edges[i])
             {
-                edges[i][x.first] = x.second / wsum;
+                edges[i][x.first].width = x.second.width / wsum;
             }
         }
 
@@ -168,8 +185,8 @@ struct Brain
 
     void add_edge(int i, int j)
     {
-        const float w = random_float(0, 1);
-        edges[i][j] = w;
+        edges[i][j].width = random_float(0, 1);
+        edges[i][j].is_inhibitor = random_float(0, 1) < 0.1;
         nodes[j].parents.push_back(i);
     }
 
@@ -310,6 +327,7 @@ struct Brain
     {
         vector<Node> node_buf = nodes;
         vector<float> energy_transmitted(n, 0);
+        vector<float> inhibition_transmitted(n, 0);
 
         // Increment time here, so the fired_at timestamps match the output state after the update
         t++;
@@ -319,10 +337,24 @@ struct Brain
         {
             if (nodes[i].energy >= 1)
             {
+                if (nodes[i].inhibition >= 1)
+                {
+                    // This node was inhibited from firing
+                    node_buf[i].inhibition = 0;
+                    continue;
+                }
+
                 // This node fired. Transmit energy through edges and set energy to zero.
                 for (auto x : edges[i])
                 {
-                    energy_transmitted[x.first] += x.second;
+                    if (x.second.is_inhibitor)
+                    {
+                        inhibition_transmitted[x.first] += nodes[i].firepower * x.second.width;
+                    }
+                    else
+                    {
+                        energy_transmitted[x.first] += nodes[i].firepower * x.second.width;
+                    }
                 }
                 node_buf[i].energy = 0;
                 node_buf[i].fired_at.push_back(t);
@@ -333,6 +365,7 @@ struct Brain
         for (int i = 0; i < n; i++)
         {
             node_buf[i].energy += energy_transmitted[i] + nodes[i].energy_uptake;
+            node_buf[i].inhibition += inhibition_transmitted[i];
             erase_if(nodes[i].fired_at, [this](int time)
                      { return time < t - track_length; });
         }
@@ -373,15 +406,21 @@ struct Brain
         return fired_parents;
     }
 
+    // Positive sign means we want to be more likely to fire and vv
     void feedback_recursively(int i, float r, int sign, int time, int time_of_output, bool search_non_fired_ancestors)
     {
-        const float chill_factor = 0.01;
+
+        // Be less volatile as you get older
+        // f(0) = 1
+        // f(10000) = 0.1 => 1e8/h = -log(0.1) => h = -1e8 / log(0.1)
+        // f(x) = e^(-x² / h)
+        const float chill_factor = 0.01 * exp(-pow(t, 2) / (1e8 / -log(0.1)));
         const float gamma = 0.5;
         const string prefix = string(time_of_output - time, '>') + " $ ";
 
         if (time_of_output - time > 10 || time < 1)
         {
-#ifdef VERBOSE
+#ifdef VERBOSE_REC
             {
                 cout << prefix << "Reached end of time on node " << i << endl;
             }
@@ -391,7 +430,7 @@ struct Brain
 
         const map<int, int> fired_parents = get_fired_parents_at_time(i, time);
 
-#ifdef VERBOSE
+#ifdef VERBOSE_REC
         {
             cout << prefix << "Testing " << i << " at time " << time << ": parents ";
             for (auto j : nodes[i].parents)
@@ -402,6 +441,7 @@ struct Brain
         }
 #endif
 
+        const float amount = chill_factor * pow(gamma, time_of_output - time) * fabs(r) * sign;
         for (auto j : fired_parents)
         {
             // Sanity check
@@ -410,15 +450,43 @@ struct Brain
                 throw logic_error("Parent fired at time geq current time!");
             }
 
-            const float amount = chill_factor * pow(gamma, time_of_output - time) * fabs(r) * sign;
-            edges[j.first][i] = amount + edges[j.first][i];
-#ifdef VERBOSE
-            {
+            const float track = nodes[j.first].modification_tracker;
 
-                cout << prefix << "Modified edge from " << j.first << " to " << i << " by " << amount << " to " << edges[j.first][i] << endl;
-            }
+            // Allow changing type instead of modifying width if type sign is opposite of amount and tracker supports amount
+            int type_sign = edges[j.first][i].get_type_sign();
+            const bool allow_type_change = type_sign * amount < 0 && track * amount > 0;
+
+            // With small probability, switch type instead of changing width
+            if (allow_type_change && random_float(0, 1) < 0.1 * fabs(track))
+            {
+                edges[j.first][i].is_inhibitor = !edges[j.first][i].is_inhibitor;
+                type_sign *= -1;
+#ifdef VERBOSE_REC
+                {
+
+                    cout << prefix << "Modified type of edge from " << j.first << " to " << i << " into " << (-1 * type_sign) << endl;
+                }
 #endif
-            feedback_recursively(j.first, r, sign, j.second, time_of_output, false); // Always stop searching non-fired ancestors if there are fired parents
+            }
+            else
+            {
+                // Reverse amount change if edge is inhibitor
+                edges[j.first][i].width = type_sign * amount + edges[j.first][i].width;
+
+#ifdef VERBOSE_REC
+                {
+
+                    cout << prefix << "Modified edge (t = " << type_sign << ") from " << j.first << " to " << i << " by " << (type_sign * amount) << " to " << edges[j.first][i].width << endl;
+                }
+#endif
+            }
+
+            // This value  tracks whether the node has mostly had positive or negative feedback lately
+            // Typical amounts are in magnitude 1e-3 ish?
+            nodes[j.first].modification_tracker = 0.999 * track + 0.001 * type_sign * amount;
+
+            // If the edge is an inhibitor, we want the opposite effect for the parent
+            feedback_recursively(j.first, r, type_sign * sign, j.second, time_of_output, false); // Always stop searching non-fired ancestors if there are fired parents
         }
 
         // If there were no fired parents and searching non-fired ancestors is allowed, continue to all parents with a single time step
@@ -426,18 +494,14 @@ struct Brain
         {
             for (auto j : nodes[i].parents)
             {
-                feedback_recursively(j, r, sign, time - 1, time_of_output, true);
+                // If the edge is an inhibitor, we want the opposite effect for the parent
+                feedback_recursively(j, r, edges[j][i].get_type_sign() * sign, time - 1, time_of_output, true);
             }
         }
     }
 
     // Give feedback
-    // Positive:
-    // For output nodes that fired, increase the width of edges from ancestors that did fire
-    // For output nodes that did not fire, decrease the width of edges from ancestors that did fire
-    // Negative:
-    // For output nodes that fired, decrease the width of edges from ancestors that did fire
-    // For output nodes that did not fire, increase the width of edges from ancestors that did fire (and intermediate?)
+
     void feedback(float r)
     {
         if (r == 0)
@@ -456,14 +520,6 @@ struct Brain
             cout << "Giving feedback " << r << " at time " << t << endl;
         }
 #endif
-
-        // Be less volatile as you get older
-        // f(0) = 1
-        // f(10000) = 0.1 => 1e8/h = -log(0.1) => h = -1e8 / log(0.1)
-        // f(x) = e^(-x² / h)
-
-        // Loop over output nodes
-        r = exp(-pow(t, 2) / (1e8 / -log(0.1))) * r;
 
         for (int i = d_in; i < d_in + d_out; i++)
         {
@@ -493,21 +549,19 @@ struct Brain
                 continue;
             }
 
-            // Remove edges that are no longer positive
-            const map<int, float> edge_buf = edges[i];
+            // Switch type of edges that are no longer positive
+            const map<int, Edge> edge_buf = edges[i];
             for (auto x : edge_buf)
             {
-                if (x.second <= 0)
+                if (x.second.width < 0)
                 {
-                    // This node (i) is no longer a parent of j
-                    erase_if(nodes[x.first].parents, [i](int j)
-                             { return j == i; });
+                    edges[i][x.first].is_inhibitor = !edges[i][x.first].is_inhibitor;
+                    edges[i][x.first].width *= -1;
 
-                    edges[i].erase(x.first);
 #ifdef VERBOSE
                     {
 
-                        cout << "Removing edge from " << i << " to " << x.first << endl;
+                        cout << "Switch type due to negative width for edge " << i << " -> " << x.first << endl;
                     }
 #endif
                 }
@@ -523,17 +577,32 @@ struct Brain
 
             if (random_float(0, 1) < p_add)
             {
-                const int test_target = random_edge_target(i);
-                const float w = random_float(0, 1);
-                edges[i][test_target] = w;
-                nodes[test_target].parents.push_back(i);
+                add_edge(i, random_edge_target(i));
 #ifdef VERBOSE
                 {
 
-                    cout << "Added edge from " << i << " to " << test_target << " with width " << edges[i][test_target] << endl;
+                    cout << "Added edge from " << i << endl;
                 }
 #endif
             }
+
+            // Change energy uptake and firepower based on modification tracker - positive means the node often is requested to grow it's edges so makes sense to grow the whole node, and vv
+            // In fully one-sided feedback, the modification tracker will at most 0.005, realistically 0.01 * 0.8 * 0.5^3 = 1e-3
+            // The signs are the same for inhibitor edges - positive tracker means we want it to inhibit more and vv
+            const float track = nodes[i].modification_tracker;
+            if (fabs(track) > 1e-4)
+            {
+                nodes[i].energy_uptake += random_float(0, 1) * track;
+                nodes[i].firepower += random_float(0, 1) * track;
+
+#ifdef VERBOSE
+                cout << "Modification for node " << i << " based on tracker " << track << endl;
+#endif
+            }
+
+#ifdef VERBOSE
+            cout << "Mod tracker for " << i << " = " << track << endl;
+#endif
 
             // TODO help inactive nodes by connecting them to an active node or shifting some energy uptake to them
         }
@@ -580,6 +649,7 @@ struct Brain
         for (int i = 0; i < n; i++)
         {
             nodes[i].energy_uptake = random_float(0, 0.1);
+            nodes[i].firepower = random_float(0.1, 2);
         }
     }
 
