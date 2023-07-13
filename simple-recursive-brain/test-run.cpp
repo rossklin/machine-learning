@@ -627,17 +627,24 @@ struct Brain
     }
 };
 
-vector<bool> get_target(int d_in, int i)
-{
-    vector<bool> input(d_in, false);
-    int target = (i / 10) % d_in;
-    input[target] = true;
-    return input;
-}
+// vector<bool> get_target(int d_in, int i)
+// {
+//     vector<bool> input(d_in, false);
+//     int target = (i / 10) % d_in;
+//     input[target] = true;
+//     return input;
+// }
+
+/* TODO
+It is probably difficult for the net to learn stuff when a node can not inhibit another node from firing
+It would probably also be helpful if nodes could hold different amounts of energy in relation to the threshold, so it is possible for one node firing to trigger multiple other nodes at the same time
+We also need a way to modify energy uptake in feedback
+May also look into a method for crossing / GA
+*/
 
 int main(int argc, char **argv)
 {
-    int d_in = 2, d_out = 2, con_depth = 3;
+    int d_in = 6, d_out = 4, con_depth = 4;
     int n = atoi(argv[1]), epochs = atoi(argv[2]);
     int n_threads = 6;
     int test_id_seed = 0;
@@ -653,32 +660,100 @@ int main(int argc, char **argv)
             test_id = test_id_seed++;
         }
 
-        Brain b(n, 3, d_in, d_out, 20);
+        Brain b(n, 3, d_in, d_out, 40);
         b.initialize(con_depth);
-        float hit_rate = 0.25;
+        float hit_rate = 0.125;
+        int row = 1, col = 1;
 
         for (int i = 1; i < epochs; i++)
         {
-            vector<bool> input = get_target(d_in, i);
+            vector<bool> input(d_in, false);
+            input[row] = true;
+            input[3 + col] = true;
             b.set_input(input);
             b.update();
 
             // Train at predicting input
-            vector<bool> output = get_target(d_in, i + 1);
-            bool test = true;
-            for (int j = 0; j < d_in; j++)
+            vector<bool> output = b.get_output();
+            int count = 0;
+            int idx = -1;
+            for (int j = 0; j < d_out; j++)
             {
-                test = test && (b.nodes[d_in + j].fired_at_set().contains(b.t) == output[j]);
+                if (output[j])
+                {
+                    count++;
+                    idx = j;
+                }
             }
-            b.feedback(2 * test - 1);
 
-            hit_rate = 0.998 * hit_rate + 0.002 * test;
+            float r = -1;
+
+            if (count == 1)
+            {
+                r = -0.5;
+                switch (idx)
+                {
+                case 0:
+                    if (row > 0)
+                    {
+                        row--;
+                        r = 1;
+                    }
+                    else
+                    {
+                        r = -1;
+                    }
+                    break;
+                case 1:
+                    if (col < 2)
+                    {
+                        col++;
+                        r = 1;
+                    }
+                    else
+                    {
+                        r = -1;
+                    }
+                    break;
+                case 2:
+                    if (row < 2)
+                    {
+                        row++;
+                        r = 1;
+                    }
+                    else
+                    {
+                        r = -1;
+                    }
+                    break;
+                case 3:
+                    if (col > 0)
+                    {
+                        col--;
+                        r = 1;
+                    }
+                    else
+                    {
+                        r = -1;
+                    }
+                    break;
+                default:
+                    throw logic_error("Invalid output index!");
+                }
+            }
+
+            b.feedback(r);
+
+            hit_rate = 0.999 * hit_rate + 0.001 * (r == 1);
 #pragma omp critical
             {
-                cout << omp_get_thread_num() << ", " << test_id << ", " << i << ", " << test << ", " << hit_rate << endl;
+                cout << omp_get_thread_num() << ", " << test_id << ", " << i << ", " << r << ", " << hit_rate << endl;
             }
 
-            if ((i % 200 == 0) && hit_rate < 0.25 + 0.00002 * i)
+            // Sigmoid start at 0.143, hit ~0.255 at 1000, 0.356 at 2000, 0.63 at 10000
+            float min_level = 1 / (1 + exp(-i / (float)2200)) - 0.357;
+
+            if ((i % 200 == 0) && hit_rate < min_level)
             {
                 // Not performing well enough, start over
                 break;
