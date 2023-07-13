@@ -457,7 +457,13 @@ struct Brain
         }
 #endif
 
+        // Be less volatile as you get older
+        // f(0) = 1
+        // f(10000) = 0.1 => 1e8/h = -log(0.1) => h = -1e8 / log(0.1)
+        // f(x) = e^(-x² / h)
+
         // Loop over output nodes
+        r = exp(-pow(t, 2) / (1e8 / -log(0.1))) * r;
 
         for (int i = d_in; i < d_in + d_out; i++)
         {
