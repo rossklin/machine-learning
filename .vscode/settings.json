@@ -80,7 +80,9 @@
     "compare": "cpp",
     "concepts": "cpp",
     "ranges": "cpp",
-    "stop_token": "cpp"
+    "stop_token": "cpp",
+    "numbers": "cpp",
+    "semaphore": "cpp"
   },
   "editor.formatOnSave": true
 }
