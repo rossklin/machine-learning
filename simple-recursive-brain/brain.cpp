@@ -4,10 +4,11 @@
 #include <cmath>
 
 #include "util.hpp"
+#include <iostream>
 
 using namespace std;
 
-// Return true if each node in range1 is connected to any node in range2 and each node in range2 is reachable from at least one node in range1
+// Return nodes in range 1 that are not connected to range 2, plus nodes in range 2 that are not reachable from range 1
 set<int> Brain::find_disconnected_nodes(pair<int, int> range1, pair<int, int> range2, int max_depth = 0) const
 {
     // Implementation of flood fill
@@ -63,6 +64,7 @@ set<int> Brain::find_disconnected_nodes(pair<int, int> range1, pair<int, int> ra
     return not_connected;
 }
 
+// Return true if the brain has no "disconnected" nodes
 bool Brain::test_connectivity(pair<int, int> range1, pair<int, int> range2, int max_depth = 0) const
 {
     return find_disconnected_nodes(range1, range2, max_depth).empty();
@@ -98,7 +100,7 @@ void Brain::normalize_edges()
 #endif
 }
 
-// Select a random new edge target that is not self and also not an input node
+// Select a random target for a new edge that is not self and also not an input node
 int Brain::random_edge_target(int self) const
 {
     int test_target;
@@ -114,13 +116,27 @@ int Brain::random_edge_target(int self) const
     return test_target;
 }
 
+// Assume here that edges[i] exists, but edges[i][j] does not
 void Brain::add_edge(int i, int j)
 {
+    if (edges[i].contains(j))
+    {
+        throw new runtime_error("Attempted to add edge that already exists!");
+    }
+
+    edges[i][j] = Edge();
     edges[i][j].width = random_float(0, 1);
     edges[i][j].is_inhibitor = random_float(0, 1) < 0.1;
     nodes[j].parents.push_back(i);
 }
 
+/* This function performs a random walk process.
+It starts at a randomly selected node within a given range (start_range),
+and it moves a given number of steps (steps).
+The movement from node to node is driven by a function (option_selector) which selects the next node from a set of possible options.
+If at any point there are no options for next move (i.e., the function has reached a dead-end), it restarts the walk.
+The process is repeated until a successful path is found or the counter exceeds 100, in which case an exception is thrown.
+The function returns the final node reached after a successful walk. */
 int Brain::random_walk(pair<int, int> start_range, int steps, function<vector<int>(int)> option_selector) const
 {
     bool success;
@@ -173,7 +189,7 @@ void Brain::create_edges(int connectivity, int connection_depth)
     for (int i = 0; i < n; i++)
     {
         // Do not create outgoing edges for output nodes
-        if (i >= d_in && i < d_in + d_out)
+        if (is_output_node(i))
         {
             continue;
         }
@@ -198,7 +214,7 @@ void Brain::create_edges(int connectivity, int connection_depth)
     for (auto i : not_connected)
     {
         // Each input node should have at least one edge to a non-input node
-        if (i < d_in)
+        if (is_input_node(i))
         {
 
             cout << "An input node " << i << " did not have an edge to a non-input node (total " << edges[i].size() << " edges)!" << endl;
@@ -210,13 +226,15 @@ void Brain::create_edges(int connectivity, int connection_depth)
             throw runtime_error("No edge from input node!");
         }
 
+        // Here we must have a non input node that was not reachable from an input node
         // Select a parent that is connected, that is not self, not an output node and not a child node
         int new_parent;
         do
         {
             new_parent = random_int(0, n - 1);
-        } while (not_connected.contains(new_parent) || (new_parent >= d_in && new_parent < d_in + d_out) || new_parent == i || edges[i].contains(new_parent));
+        } while (not_connected.contains(new_parent) || is_output_node(new_parent) || new_parent == i || edges[i].contains(new_parent));
 
+        // Since new_parent was connected to the input, it can not already be our parent when we our selves are not connected
         add_edge(new_parent, i);
     }
 
@@ -234,7 +252,7 @@ void Brain::create_edges(int connectivity, int connection_depth)
                                      {
                     vector<int> options = nodes[j].parents;
                     erase_if(options, [this](int k)
-                        { return k < d_in; });
+                        { return is_input_node(k); });
                     return options; });
 
             // Connect to this node which has a known path to the output
@@ -248,7 +266,7 @@ void Brain::create_edges(int connectivity, int connection_depth)
                                      {
                     vector<int> options;
                     for (auto x : edges[j]) {
-                        if (x.first < d_in || x.first >= d_in + d_out) {
+                        if (!is_output_node(x.first)) {
                             options.push_back(x.first);
                         }
                     }
@@ -284,14 +302,8 @@ void Brain::update()
             node_buf[i].inhibition = 0;
         }
 
-        if (nodes[i].energy >= 1)
+        if (nodes[i].energy >= 1 && !was_inhibited)
         {
-            if (was_inhibited)
-            {
-                // This node was inhibited from firing
-                continue;
-            }
-
             // This node fired. Transmit energy through edges and set energy to zero.
             for (auto x : edges[i])
             {
