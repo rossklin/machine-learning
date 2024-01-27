@@ -150,6 +150,16 @@ int Brain::random_walk(pair<int, int> start_range, int steps, function<vector<in
     return target;
 }
 
+bool Brain::is_input_node(int idx) const
+{
+    return idx < d_in;
+}
+
+bool Brain::is_output_node(int idx) const
+{
+    return idx >= d_in && idx < d_in + d_out;
+}
+
 // Create initial edges, between one and connectivity edges per node, where whidth sums to 1.
 // Guarantee all nodes are reachable from input in the end
 void Brain::create_edges(int connectivity, int connection_depth)

@@ -36,5 +36,7 @@ struct Brain
     void initialize(int connection_depth);
     std::vector<bool> get_output() const;
     void set_input(std::vector<bool> x);
+    bool is_input_node(int idx) const;
+    bool is_output_node(int idx) const;
     Brain(int _n, int _connectivity, int _d_in, int _d_out, int track_l);
 };
