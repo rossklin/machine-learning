@@ -33,6 +33,7 @@ struct Brain
     void update();
     std::map<time_point, std::set<node_index>> get_fired_parents_at_time(node_index j, time_point _t) const;
     void feedback_recursively(node_index i, float r, int sign, time_point time, time_point time_of_output, bool search_non_fired_ancestors);
+    void feedback_frontier(float r);
     void feedback(float r);
     void initialize(int connection_depth);
     std::vector<bool> get_output() const;

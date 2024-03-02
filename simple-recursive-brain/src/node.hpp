@@ -11,6 +11,7 @@ struct Node
     float energy_uptake;
     float firepower;
     float modification_tracker;
+    float sadness;
     std::vector<time_point> fired_at;
     std::vector<node_index> parents;
 

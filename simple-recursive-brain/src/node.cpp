@@ -7,9 +7,10 @@ Node::Node()
     energy_uptake = 0;
     firepower = 0;
     modification_tracker = 0;
+    sadness = 0;
 }
 
-std::set<int> Node::fired_at_set() const
+std::set<time_point> Node::fired_at_set() const
 {
-    return std::set<int>(fired_at.begin(), fired_at.end());
+    return std::set<time_point>(fired_at.begin(), fired_at.end());
 }

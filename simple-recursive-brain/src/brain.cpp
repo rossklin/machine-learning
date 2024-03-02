@@ -447,6 +447,92 @@ void Brain::feedback_recursively(node_index i, float r, int sign, time_point tim
     }
 }
 
+typedef map<node_index, map<time_point, float>> FeedbackMap;
+
+void Brain::feedback_frontier(float r)
+{
+    // We want to reward the specific temporal pattern, ie that the output nodes fired at the times they did, in relation to the input pattern
+    FeedbackMap frontier;
+    time_point offset_time = t;
+    const float temporal_discount_factor = 0.9;
+    const float edge_adjustment_factor = 0.001;
+    const float sadness_increment = 0.001;
+    const float modification_tracker_increment = 0.001;
+
+    if (r == 0)
+    {
+        return;
+    }
+
+    // Add output nodes to frontier
+    for (node_index i = d_in; i < d_in + d_out; i++)
+    {
+        frontier[i][offset_time] = r;
+    }
+
+    while (!frontier.empty())
+    {
+        FeedbackMap frontier_buf;
+        for (auto x : frontier)
+        {
+            const node_index i = x.first;
+            for (auto y : x.second)
+            {
+                const time_point t2 = y.first;
+                const float r2 = y.second;
+                const bool did_or_will_fire = nodes[i].fired_at.back() >= t2; // If this node will fire later, it will have had use of energy that was added earlier
+                auto active_parents = get_fired_parents_at_time(i, t2);
+
+                for (auto parent_batch : active_parents)
+                {
+                    const time_point parent_fired_time = parent_batch.first;
+                    for (node_index parent_idx : parent_batch.second)
+                    {
+                        const float gamma = pow(temporal_discount_factor, t - parent_fired_time);
+
+                        // Determine whether we like that the parent fired at us
+                        // Used energy (Y/N) * Got energy (Y/N) * Happy with result (Y/N)
+                        const int used_type_sign = (2 * did_or_will_fire - 1);
+                        const int parent_contributed = used_type_sign * edges[parent_idx][i].get_type_sign();
+                        const float modified_feedback = gamma * parent_contributed * r2;
+
+                        // Adjust edges to parents: get more if we liked what they did, less otherwise
+                        edges[parent_idx][i].width += edge_adjustment_factor * modified_feedback;
+
+                        // Add parents to new frontier with sign adjusted feedback
+                        frontier_buf[parent_idx][parent_fired_time] += modified_feedback;
+                    }
+                }
+
+                // This value  tracks whether the node has mostly had positive or negative feedback lately
+                // Typical amounts are in magnitude 1e-3 ish?
+                const float feedback_sign = ((r2 > 0) - (r2 < 0));
+                nodes[i].modification_tracker = modification_tracker_increment * feedback_sign + (1 - modification_tracker_increment) * nodes[i].modification_tracker;
+
+                // Something like marking the node as sad if it gets negative feeback for not firing and didn't have any incoming energy
+                const float make_sad = static_cast<float>(r2 < 0 && active_parents.empty() && !did_or_will_fire);
+                nodes[i].sadness = sadness_increment * make_sad + (1 - sadness_increment) * nodes[i].sadness;
+            }
+        }
+
+        frontier = frontier_buf;
+
+        offset_time--;
+        if (offset_time >= t - track_length)
+        {
+            const float gamma = pow(temporal_discount_factor, t - offset_time);
+
+            // Add output nodes to frontier with a time offset
+            for (node_index i = d_in; i < d_in + d_out; i++)
+            {
+                frontier[i][offset_time] = gamma * r;
+            }
+        }
+    };
+
+    normalize_edges();
+}
+
 // Give feedback
 
 void Brain::feedback(float r)
