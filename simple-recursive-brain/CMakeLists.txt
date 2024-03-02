@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.12) # Ensure a minimum version of CMake
 
+set(CMAKE_C_COMPILER "/usr/bin/gcc")
+set(CMAKE_CXX_COMPILER "/usr/bin/g++")
+
 project(SRB VERSION 1.0 LANGUAGES CXX) # Project name and version
 
 # Set C++ standard/compile options
