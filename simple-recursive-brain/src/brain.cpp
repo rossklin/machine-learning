@@ -330,14 +330,16 @@ void Brain::update()
 map<time_point, set<node_index>> Brain::get_fired_parents_at_time(node_index j, time_point _t) const
 {
     map<time_point, set<node_index>> fired_parents;
-    const time_point last_fired = ranges::max(nodes[j].fired_at);
+    const time_point last_fired = nodes[j].fired_at.back();
 
     for (auto k : nodes[j].parents)
     {
+        const set<time_point> fired = nodes[k].fired_at_set();
+
         // Check if the node did fire at the correct time
         for (time_point test = _t - 1; test >= last_fired; test--)
         {
-            if (nodes[k].fired_at_set().contains(test))
+            if (fired.contains(test))
             {
                 // Since possible_times are in anti-chronological order, this is guaranteed to be the last time the node fired in the window
                 fired_parents[test].insert(k);
