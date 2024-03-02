@@ -2,6 +2,7 @@
 #include "brain.hpp"
 #include <stdexcept>
 #include <cmath>
+#include <algorithm>
 
 #include "util.hpp"
 #include <iostream>
@@ -9,11 +10,11 @@
 using namespace std;
 
 // Return nodes in range 1 that are not connected to range 2, plus nodes in range 2 that are not reachable from range 1
-set<int> Brain::find_disconnected_nodes(pair<int, int> range1, pair<int, int> range2, int max_depth = 0) const
+set<node_index> Brain::find_disconnected_nodes(pair<node_index, node_index> range1, pair<node_index, node_index> range2, int max_depth) const
 {
     // Implementation of flood fill
-    set<int> flooded, horizon, not_connected;
-    for (int i = range1.first; i <= range1.second; i++)
+    set<node_index> flooded, horizon, not_connected;
+    for (node_index i = range1.first; i <= range1.second; i++)
     {
         // Start with node i as the horizon
         bool is_connected = false;
@@ -22,7 +23,7 @@ set<int> Brain::find_disconnected_nodes(pair<int, int> range1, pair<int, int> ra
         int depth = 0;
         while (horizon.size() && (max_depth == 0 || depth++ < max_depth))
         {
-            set<int> horizon_buf;
+            set<node_index> horizon_buf;
             for (auto j : horizon)
             {
                 if (j >= range2.first && j <= range2.second)
@@ -53,7 +54,7 @@ set<int> Brain::find_disconnected_nodes(pair<int, int> range1, pair<int, int> ra
     }
 
     // Verify that all of range2 was flooded
-    for (int i = range2.first; i <= range2.second; i++)
+    for (node_index i = range2.first; i <= range2.second; i++)
     {
         if (!flooded.contains(i))
         {
@@ -65,7 +66,7 @@ set<int> Brain::find_disconnected_nodes(pair<int, int> range1, pair<int, int> ra
 }
 
 // Return true if the brain has no "disconnected" nodes
-bool Brain::test_connectivity(pair<int, int> range1, pair<int, int> range2, int max_depth = 0) const
+bool Brain::test_connectivity(pair<node_index, node_index> range1, pair<node_index, node_index> range2, int max_depth) const
 {
     return find_disconnected_nodes(range1, range2, max_depth).empty();
 }
@@ -73,8 +74,7 @@ bool Brain::test_connectivity(pair<int, int> range1, pair<int, int> range2, int 
 // Normalize edge widths to sum to 1 for energy conservation
 void Brain::normalize_edges()
 {
-    vector<float> x(n);
-    for (int i = 0; i < n; i++)
+    for (node_index i = 0; i < n; i++)
     {
         float wsum = 0;
 
@@ -82,26 +82,16 @@ void Brain::normalize_edges()
         {
             wsum += x.second.width;
         }
-        x[i] = wsum;
 
         for (auto x : edges[i])
         {
             edges[i][x.first].width = x.second.width / wsum;
         }
     }
-
-// Debug
-#ifdef VERBOSE
-    {
-        x.erase(x.begin() + d_in, x.begin() + d_in + d_out);
-        sort(x.begin(), x.end());
-        cout << "Normalizing: lowest = " << x.front() << ", highest = " << x.back() << endl;
-    }
-#endif
 }
 
 // Select a random target for a new edge that is not self and also not an input node
-int Brain::random_edge_target(int self) const
+node_index Brain::random_edge_target(node_index self) const
 {
     int test_target;
     int count = 0;
@@ -117,7 +107,7 @@ int Brain::random_edge_target(int self) const
 }
 
 // Assume here that edges[i] exists, but edges[i][j] does not
-void Brain::add_edge(int i, int j)
+void Brain::add_edge(node_index i, node_index j)
 {
     if (edges[i].contains(j))
     {
@@ -137,23 +127,23 @@ The movement from node to node is driven by a function (option_selector) which s
 If at any point there are no options for next move (i.e., the function has reached a dead-end), it restarts the walk.
 The process is repeated until a successful path is found or the counter exceeds 100, in which case an exception is thrown.
 The function returns the final node reached after a successful walk. */
-int Brain::random_walk(pair<int, int> start_range, int steps, function<vector<int>(int)> option_selector) const
+node_index Brain::random_walk(pair<node_index, node_index> start_range, int steps, function<vector<node_index>(node_index)> option_selector) const
 {
     bool success;
     int counter = 0;
-    int target;
+    node_index target;
     do
     {
         if (counter++ > 100)
         {
-            throw runtime_error("Failed to find valid connector path for disconnected input/output node!");
+            throw runtime_error("Failed to find valid connector path for disconnected input/output node after 100 tries!");
         }
 
         target = random_int(start_range.first, start_range.second);
         success = true;
         for (int j = 0; j < steps; j++)
         {
-            vector<int> options = option_selector(target);
+            vector<node_index> options = option_selector(target);
 
             if (options.empty())
             {
@@ -166,18 +156,19 @@ int Brain::random_walk(pair<int, int> start_range, int steps, function<vector<in
     return target;
 }
 
-bool Brain::is_input_node(int idx) const
+bool Brain::is_input_node(node_index idx) const
 {
     return idx < d_in;
 }
 
-bool Brain::is_output_node(int idx) const
+bool Brain::is_output_node(node_index idx) const
 {
     return idx >= d_in && idx < d_in + d_out;
 }
 
 // Create initial edges, between one and connectivity edges per node, where whidth sums to 1.
 // Guarantee all nodes are reachable from input in the end
+// Guarantee output is reachable from input in connection_depth steps
 void Brain::create_edges(int connectivity, int connection_depth)
 {
     // In case of re-run, clear the parent index
@@ -186,7 +177,7 @@ void Brain::create_edges(int connectivity, int connection_depth)
         n.parents.clear();
     }
 
-    for (int i = 0; i < n; i++)
+    for (node_index i = 0; i < n; i++)
     {
         // Do not create outgoing edges for output nodes
         if (is_output_node(i))
@@ -196,14 +187,14 @@ void Brain::create_edges(int connectivity, int connection_depth)
 
         const int n_connect = random_int(1, connectivity);
         edges[i].clear();
-        for (int j = 0; j < n_connect; j++)
+        for (node_index j = 0; j < n_connect; j++)
         {
             add_edge(i, random_edge_target(i));
         }
     }
 
     // Connect all non-connected nodes to a random connected node
-    set<int> not_connected = find_disconnected_nodes(make_pair(0, d_in - 1), make_pair(d_in, n - 1));
+    set<node_index> not_connected = find_disconnected_nodes(make_pair(0, d_in - 1), make_pair(d_in, n - 1));
 
     // Sanity check - should not be possible!
     if (not_connected.size() >= n - d_in)
@@ -228,7 +219,7 @@ void Brain::create_edges(int connectivity, int connection_depth)
 
         // Here we must have a non input node that was not reachable from an input node
         // Select a parent that is connected, that is not self, not an output node and not a child node
-        int new_parent;
+        node_index new_parent;
         do
         {
             new_parent = random_int(0, n - 1);
@@ -248,10 +239,10 @@ void Brain::create_edges(int connectivity, int connection_depth)
 
             // Random walk backwards from a random output - there likely exists at least one output node that has a backwards path that does not end prematurely at an input
             // A case which fails could be when all input nodes are connected to one output node and one input node connects to all output nodes
-            int target = random_walk(make_pair(d_in, d_in + d_out - 1), connection_depth - 1, [this](int j)
-                                     {
-                    vector<int> options = nodes[j].parents;
-                    erase_if(options, [this](int k)
+            node_index target = random_walk(make_pair(d_in, d_in + d_out - 1), connection_depth - 1, [this](node_index j)
+                                            {
+                    vector<node_index> options = nodes[j].parents;
+                    erase_if(options, [this](node_index k)
                         { return is_input_node(k); });
                     return options; });
 
@@ -262,9 +253,9 @@ void Brain::create_edges(int connectivity, int connection_depth)
         {
             // Output node that was not reached by input
             // Random walk forwards from a random input without hitting an output
-            int target = random_walk(make_pair(0, d_in - 1), connection_depth - 1, [this](int j)
-                                     {
-                    vector<int> options;
+            node_index target = random_walk(make_pair(0, d_in - 1), connection_depth - 1, [this](node_index j)
+                                            {
+                    vector<node_index> options;
                     for (auto x : edges[j]) {
                         if (!is_output_node(x.first)) {
                             options.push_back(x.first);
@@ -293,7 +284,7 @@ void Brain::update()
     t++;
 
     // Identify fired nodes, gather transmitted energy and reset energy on fired nodes
-    for (int i = 0; i < n; i++)
+    for (node_index i = 0; i < n; i++)
     {
         bool was_inhibited = nodes[i].inhibition >= 1;
         if (was_inhibited)
@@ -322,11 +313,11 @@ void Brain::update()
     }
 
     // Add transmitted energy and energy uptake to target nodes and clear old fired_at times
-    for (int i = 0; i < n; i++)
+    for (node_index i = 0; i < n; i++)
     {
         node_buf[i].energy += energy_transmitted[i] + nodes[i].energy_uptake;
         node_buf[i].inhibition += inhibition_transmitted[i];
-        erase_if(node_buf[i].fired_at, [this](int time)
+        erase_if(node_buf[i].fired_at, [this](time_point time)
                  { return time < t - track_length; });
     }
 
@@ -336,29 +327,20 @@ void Brain::update()
 
 // Calculate which parents of node j fired (and when) during the time period between the last time node j fired before _t and _t
 // These are the parents which contributed energy to the next time node j fired after time _t
-map<int, int> Brain::get_fired_parents_at_time(int j, int _t) const
+map<time_point, set<node_index>> Brain::get_fired_parents_at_time(node_index j, time_point _t) const
 {
-    map<int, int> fired_parents;
-    vector<int> possible_times; // anti-chronological order
-    for (int test = _t - 1; test > _t - 6; test--)
-    {
-        possible_times.push_back(test);
-        if (nodes[j].fired_at_set().contains(test))
-        {
-            break;
-        }
-    }
+    map<time_point, set<node_index>> fired_parents;
+    const time_point last_fired = ranges::max(nodes[j].fired_at);
 
     for (auto k : nodes[j].parents)
     {
         // Check if the node did fire at the correct time
-        for (auto test : possible_times)
+        for (time_point test = _t - 1; test >= last_fired; test--)
         {
             if (nodes[k].fired_at_set().contains(test))
             {
                 // Since possible_times are in anti-chronological order, this is guaranteed to be the last time the node fired in the window
-                fired_parents[k] = test;
-                break;
+                fired_parents[test].insert(k);
             }
         }
     }
@@ -366,8 +348,9 @@ map<int, int> Brain::get_fired_parents_at_time(int j, int _t) const
     return fired_parents;
 }
 
+// TODO rewrite this to be non-recursive so we can have a shared frontier of parents and give them a sum of feedback
 // Positive sign means we want to be more likely to fire and vv
-void Brain::feedback_recursively(int i, float r, int sign, int time, int time_of_output, bool search_non_fired_ancestors)
+void Brain::feedback_recursively(node_index i, float r, int sign, time_point time, time_point time_of_output, bool search_non_fired_ancestors)
 {
 
     // Be less volatile as you get older
@@ -387,7 +370,8 @@ void Brain::feedback_recursively(int i, float r, int sign, int time, int time_of
         return;
     }
 
-    const map<int, int> fired_parents = get_fired_parents_at_time(i, time);
+    // All the parents that fired at node i since last time node i fired, eg the ones who could contribure to node i gaining energy or being inhibited
+    const map<time_point, set<node_index>> fired_parents = get_fired_parents_at_time(i, time);
 
 #ifdef VERBOSE_REC
     {
@@ -403,49 +387,53 @@ void Brain::feedback_recursively(int i, float r, int sign, int time, int time_of
     const float amount = chill_factor * pow(gamma, time_of_output - time) * fabs(r) * sign;
     for (auto j : fired_parents)
     {
+        const time_point _t = j.first;
         // Sanity check
-        if (j.second >= time)
+        if (_t >= time)
         {
             throw logic_error("Parent fired at time geq current time!");
         }
 
-        const float track = nodes[j.first].modification_tracker;
-
-        // Allow changing type instead of modifying width if type sign is opposite of amount and tracker supports amount
-        int type_sign = edges[j.first][i].get_type_sign();
-        const bool allow_type_change = type_sign * amount < 0 && track * amount > 0;
-
-        // With small probability, switch type instead of changing width
-        if (allow_type_change && random_float(0, 1) < p_change_type * fabs(track))
+        for (node_index k : j.second)
         {
-            edges[j.first][i].is_inhibitor = !edges[j.first][i].is_inhibitor;
-            type_sign *= -1;
-#ifdef VERBOSE_REC
+            const float track = nodes[k].modification_tracker;
+
+            // Allow changing type instead of modifying width if type sign is opposite of amount and tracker supports amount
+            int type_sign = edges[k][i].get_type_sign();
+            const bool allow_type_change = type_sign * amount < 0 && track * amount > 0;
+
+            // With small probability, switch type instead of changing width
+            if (allow_type_change && random_float(0, 1) < p_change_type * fabs(track))
             {
+                edges[k][i].is_inhibitor = !edges[k][i].is_inhibitor;
+                type_sign *= -1;
+#ifdef VERBOSE_REC
+                {
 
-                cout << prefix << "Modified type of edge from " << j.first << " to " << i << " into " << (-1 * type_sign) << endl;
-            }
+                    cout << prefix << "Modified type of edge from " << k << " to " << i << " into " << (-1 * type_sign) << endl;
+                }
 #endif
-        }
-        else
-        {
-            // Reverse amount change if edge is inhibitor
-            edges[j.first][i].width = type_sign * amount + edges[j.first][i].width;
+            }
+            else
+            {
+                // Reverse amount change if edge is inhibitor
+                edges[k][i].width = type_sign * amount + edges[k][i].width;
 
 #ifdef VERBOSE_REC
-            {
+                {
 
-                cout << prefix << "Modified edge (t = " << type_sign << ") from " << j.first << " to " << i << " by " << (type_sign * amount) << " to " << edges[j.first][i].width << endl;
-            }
+                    cout << prefix << "Modified edge (t = " << type_sign << ") from " << k << " to " << i << " by " << (type_sign * amount) << " to " << edges[k][i].width << endl;
+                }
 #endif
+            }
+
+            // This value  tracks whether the node has mostly had positive or negative feedback lately
+            // Typical amounts are in magnitude 1e-3 ish?
+            nodes[k].modification_tracker = 0.999 * track + 0.001 * type_sign * amount;
+
+            // If the edge is an inhibitor, we want the opposite effect for the parent
+            feedback_recursively(k, r, type_sign * sign, _t, time_of_output, false); // Always stop searching non-fired ancestors if there are fired parents
         }
-
-        // This value  tracks whether the node has mostly had positive or negative feedback lately
-        // Typical amounts are in magnitude 1e-3 ish?
-        nodes[j.first].modification_tracker = 0.999 * track + 0.001 * type_sign * amount;
-
-        // If the edge is an inhibitor, we want the opposite effect for the parent
-        feedback_recursively(j.first, r, type_sign * sign, j.second, time_of_output, false); // Always stop searching non-fired ancestors if there are fired parents
     }
 
     // If there were no fired parents and searching non-fired ancestors is allowed, continue to all parents with a single time step
@@ -480,7 +468,7 @@ void Brain::feedback(float r)
     }
 #endif
 
-    for (int i = d_in; i < d_in + d_out; i++)
+    for (node_index i = d_in; i < d_in + d_out; i++)
     {
         const bool output_did_fire = nodes[i].fired_at_set().contains(t);
         const int sign = (2 * output_did_fire - 1) * ((r > 0) - (r < 0)); // 1 = increase energy, -1 = reduce energy
@@ -500,7 +488,7 @@ void Brain::feedback(float r)
     }
 #endif
 
-    for (int i = 0; i < n; i++)
+    for (node_index i = 0; i < n; i++)
     {
         // Skip output nodes since they do not have outgoing edges
         if (i >= d_in && i < d_in + d_out)
@@ -509,7 +497,7 @@ void Brain::feedback(float r)
         }
 
         // Switch type of edges that are no longer positive
-        const map<int, Edge> edge_buf = edges[i];
+        const map<node_index, Edge> edge_buf = edges[i];
         for (auto x : edge_buf)
         {
             if (x.second.width < 0)
@@ -572,8 +560,8 @@ void Brain::feedback(float r)
 
 void Brain::initialize(int connection_depth)
 {
-    pair<int, int> input_range = {0, d_in - 1};
-    pair<int, int> output_range = {d_in, d_in + d_out - 1};
+    pair<node_index, node_index> input_range = {0, d_in - 1};
+    pair<node_index, node_index> output_range = {d_in, d_in + d_out - 1};
     int attempts = 0;
 
     // Require input connected to output in connection_depth steps, and connected to each other node in any number of steps
@@ -605,7 +593,7 @@ void Brain::initialize(int connection_depth)
         // This is just a sanity check as create_edges should guarantee correct connections
     } while (!(failed || (test_connectivity(input_range, output_range, connection_depth) && test_connectivity(input_range, make_pair(d_in, n - 1)))));
 
-    for (int i = 0; i < n; i++)
+    for (node_index i = 0; i < n; i++)
     {
         nodes[i].energy_uptake = random_float(0, 0.1);
         nodes[i].firepower = random_float(0.1, 2);
@@ -615,7 +603,7 @@ void Brain::initialize(int connection_depth)
 vector<bool> Brain::get_output() const
 {
     vector<bool> res(d_out);
-    for (int i = d_in; i < d_in + d_out; i++)
+    for (node_index i = d_in; i < d_in + d_out; i++)
     {
         res[i - d_in] = nodes[i].fired_at_set().contains(t);
     }
@@ -624,7 +612,7 @@ vector<bool> Brain::get_output() const
 
 void Brain::set_input(vector<bool> x)
 {
-    for (int k = 0; k < d_in; k++)
+    for (node_index k = 0; k < d_in; k++)
     {
         nodes[k].energy = x[k];
     }

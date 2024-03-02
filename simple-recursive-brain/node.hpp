@@ -2,6 +2,8 @@
 #include <vector>
 #include <set>
 
+#include "util.hpp"
+
 struct Node
 {
     float energy;
@@ -9,10 +11,10 @@ struct Node
     float energy_uptake;
     float firepower;
     float modification_tracker;
-    std::vector<int> fired_at;
-    std::vector<int> parents;
+    std::vector<time_point> fired_at;
+    std::vector<node_index> parents;
 
     Node();
 
-    std::set<int> fired_at_set() const;
+    std::set<time_point> fired_at_set() const;
 };
