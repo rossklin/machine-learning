@@ -20,7 +20,7 @@ struct Brain
     std::vector<Node> nodes;
     std::vector<std::map<node_index, Edge>> edges;
     float chill_factor_base;
-    float gamma;
+    float temporal_discount_factor;
     float p_change_type;
 
     std::set<node_index> find_disconnected_nodes(std::pair<node_index, node_index> range1, std::pair<node_index, node_index> range2, int max_depth = 0) const;
@@ -31,8 +31,6 @@ struct Brain
     node_index random_walk(std::pair<node_index, node_index> start_range, int steps, std::function<std::vector<node_index>(node_index)> option_selector) const;
     void create_edges(int connectivity, int connection_depth);
     void update();
-    std::map<time_point, std::set<node_index>> get_fired_parents_at_time(node_index j, time_point _t) const;
-    void feedback_recursively(node_index i, float r, int sign, time_point time, time_point time_of_output, bool search_non_fired_ancestors);
     void feedback_frontier(float r);
     void feedback(float r);
     void initialize(int connection_depth);

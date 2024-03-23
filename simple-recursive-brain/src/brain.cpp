@@ -325,138 +325,15 @@ void Brain::update()
     nodes.swap(node_buf);
 }
 
-// Calculate which parents of node j fired (and when) during the time period between the last time node j fired before _t and _t
-// These are the parents which contributed energy to the next time node j fired after time _t
-map<time_point, set<node_index>> Brain::get_fired_parents_at_time(node_index j, time_point _t) const
-{
-    map<time_point, set<node_index>> fired_parents;
-    const time_point last_fired = nodes[j].fired_at.back();
-
-    for (auto k : nodes[j].parents)
-    {
-        const set<time_point> fired = nodes[k].fired_at_set();
-
-        // Check if the node did fire at the correct time
-        for (time_point test = _t - 1; test >= last_fired; test--)
-        {
-            if (fired.contains(test))
-            {
-                // Since possible_times are in anti-chronological order, this is guaranteed to be the last time the node fired in the window
-                fired_parents[test].insert(k);
-            }
-        }
-    }
-
-    return fired_parents;
-}
-
-// TODO rewrite this to be non-recursive so we can have a shared frontier of parents and give them a sum of feedback
-// Positive sign means we want to be more likely to fire and vv
-void Brain::feedback_recursively(node_index i, float r, int sign, time_point time, time_point time_of_output, bool search_non_fired_ancestors)
-{
-
-    // Be less volatile as you get older
-    // f(0) = 1
-    // f(10000) = 0.1 => 1e8/h = -log(0.1) => h = -1e8 / log(0.1)
-    // f(x) = e^(-x² / h)
-    const float chill_factor = chill_factor_base * exp(-pow(t, 2) / (1e8 / -log(0.1)));
-    const string prefix = string(time_of_output - time, '>') + " $ ";
-
-    if (time_of_output - time > 10 || time < 1)
-    {
-#ifdef VERBOSE_REC
-        {
-            cout << prefix << "Reached end of time on node " << i << endl;
-        }
-#endif
-        return;
-    }
-
-    // All the parents that fired at node i since last time node i fired, eg the ones who could contribure to node i gaining energy or being inhibited
-    const map<time_point, set<node_index>> fired_parents = get_fired_parents_at_time(i, time);
-
-#ifdef VERBOSE_REC
-    {
-        cout << prefix << "Testing " << i << " at time " << time << ": parents ";
-        for (auto j : nodes[i].parents)
-        {
-            cout << j << "[" << (fired_parents.contains(j) ? "F" : "O") << "], ";
-        }
-        cout << endl;
-    }
-#endif
-
-    const float amount = chill_factor * pow(gamma, time_of_output - time) * fabs(r) * sign;
-    for (auto j : fired_parents)
-    {
-        const time_point _t = j.first;
-        // Sanity check
-        if (_t >= time)
-        {
-            throw logic_error("Parent fired at time geq current time!");
-        }
-
-        for (node_index k : j.second)
-        {
-            const float track = nodes[k].modification_tracker;
-
-            // Allow changing type instead of modifying width if type sign is opposite of amount and tracker supports amount
-            int type_sign = edges[k][i].get_type_sign();
-            const bool allow_type_change = type_sign * amount < 0 && track * amount > 0;
-
-            // With small probability, switch type instead of changing width
-            if (allow_type_change && random_float(0, 1) < p_change_type * fabs(track))
-            {
-                edges[k][i].is_inhibitor = !edges[k][i].is_inhibitor;
-                type_sign *= -1;
-#ifdef VERBOSE_REC
-                {
-
-                    cout << prefix << "Modified type of edge from " << k << " to " << i << " into " << (-1 * type_sign) << endl;
-                }
-#endif
-            }
-            else
-            {
-                // Reverse amount change if edge is inhibitor
-                edges[k][i].width = type_sign * amount + edges[k][i].width;
-
-#ifdef VERBOSE_REC
-                {
-
-                    cout << prefix << "Modified edge (t = " << type_sign << ") from " << k << " to " << i << " by " << (type_sign * amount) << " to " << edges[k][i].width << endl;
-                }
-#endif
-            }
-
-            // This value  tracks whether the node has mostly had positive or negative feedback lately
-            // Typical amounts are in magnitude 1e-3 ish?
-            nodes[k].modification_tracker = 0.999 * track + 0.001 * type_sign * amount;
-
-            // If the edge is an inhibitor, we want the opposite effect for the parent
-            feedback_recursively(k, r, type_sign * sign, _t, time_of_output, false); // Always stop searching non-fired ancestors if there are fired parents
-        }
-    }
-
-    // If there were no fired parents and searching non-fired ancestors is allowed, continue to all parents with a single time step
-    if (search_non_fired_ancestors && fired_parents.empty())
-    {
-        for (auto j : nodes[i].parents)
-        {
-            // If the edge is an inhibitor, we want the opposite effect for the parent
-            feedback_recursively(j, r, edges[j][i].get_type_sign() * sign, time - 1, time_of_output, true);
-        }
-    }
-}
-
 typedef map<node_index, map<time_point, float>> FeedbackMap;
 
+// Apply the feedback without normalizing the edges (for internal use)
 void Brain::feedback_frontier(float r)
 {
     // We want to reward the specific temporal pattern, ie that the output nodes fired at the times they did, in relation to the input pattern
     FeedbackMap frontier;
     time_point offset_time = t;
-    const float temporal_discount_factor = 0.9;
+    const float not_fired_contribution_factor = 0.25;
     const float edge_adjustment_factor = 0.001;
     const float sadness_increment = 0.001;
     const float modification_tracker_increment = 0.001;
@@ -480,21 +357,31 @@ void Brain::feedback_frontier(float r)
             const node_index i = x.first;
             for (auto y : x.second)
             {
-                const time_point t2 = y.first;
                 const float r2 = y.second;
-                const bool did_or_will_fire = nodes[i].fired_at.back() >= t2; // If this node will fire later, it will have had use of energy that was added earlier
-                auto active_parents = get_fired_parents_at_time(i, t2);
+                const time_point t2 = y.first;
+                const time_point t1 = nodes[i].last_fired_before(t2); // Will be -1 if the node did not fire befor t2
+                const bool did_fire = nodes[i].did_fire_at(t2);
+                bool any_active_parents = false;
 
-                for (auto parent_batch : active_parents)
+                for (node_index parent_idx : nodes[i].parents)
                 {
-                    const time_point parent_fired_time = parent_batch.first;
-                    for (node_index parent_idx : parent_batch.second)
+                    bool parent_did_fire = false;
+                    for (time_point parent_fired_time : nodes[parent_idx].fired_at)
                     {
                         const float gamma = pow(temporal_discount_factor, t - parent_fired_time);
 
+                        // Set a limit when the feedback gets too small
+                        if (fabs(gamma * r2) < 1e-6 || parent_fired_time < t1 || parent_fired_time >= t2)
+                        {
+                            continue;
+                        }
+
+                        parent_did_fire = true;
+                        any_active_parents = true;
+
                         // Determine whether we like that the parent fired at us
                         // Used energy (Y/N) * Got energy (Y/N) * Happy with result (Y/N)
-                        const int used_type_sign = (2 * did_or_will_fire - 1);
+                        const int used_type_sign = (2 * did_fire - 1);
                         const int parent_contributed = used_type_sign * edges[parent_idx][i].get_type_sign();
                         const float modified_feedback = gamma * parent_contributed * r2;
 
@@ -504,6 +391,23 @@ void Brain::feedback_frontier(float r)
                         // Add parents to new frontier with sign adjusted feedback
                         frontier_buf[parent_idx][parent_fired_time] += modified_feedback;
                     }
+
+                    if (!parent_did_fire)
+                    {
+                        // Give feedback for not firing
+                        const float target_time = t2 - 1;
+                        const float gamma = pow(temporal_discount_factor, t - target_time);
+
+                        if (fabs(gamma * r2) < 1e-6)
+                        {
+                            // Determine whether we like that the parent did not fire at us (value these "contributions" relatively less)
+                            const float parent_contributed = did_fire ? -1 : 1;
+                            const float modified_feedback = gamma * not_fired_contribution_factor * parent_contributed * r2;
+
+                            // Add parents to new frontier with sign adjusted feedback
+                            frontier_buf[parent_idx][target_time] += modified_feedback;
+                        }
+                    }
                 }
 
                 // This value  tracks whether the node has mostly had positive or negative feedback lately
@@ -512,8 +416,11 @@ void Brain::feedback_frontier(float r)
                 nodes[i].modification_tracker = modification_tracker_increment * feedback_sign + (1 - modification_tracker_increment) * nodes[i].modification_tracker;
 
                 // Something like marking the node as sad if it gets negative feeback for not firing and didn't have any incoming energy
-                const float make_sad = static_cast<float>(r2 < 0 && active_parents.empty() && !did_or_will_fire);
-                nodes[i].sadness = sadness_increment * make_sad + (1 - sadness_increment) * nodes[i].sadness;
+                const bool make_sad = r2 < 0 && !any_active_parents && !did_fire;
+                if (make_sad)
+                {
+                    nodes[i].sadness = sadness_increment + (1 - sadness_increment) * nodes[i].sadness;
+                }
             }
         }
 
@@ -531,8 +438,6 @@ void Brain::feedback_frontier(float r)
             }
         }
     };
-
-    normalize_edges();
 }
 
 // Give feedback
@@ -556,18 +461,8 @@ void Brain::feedback(float r)
     }
 #endif
 
-    for (node_index i = d_in; i < d_in + d_out; i++)
-    {
-        const bool output_did_fire = nodes[i].fired_at_set().contains(t);
-        const int sign = (2 * output_did_fire - 1) * ((r > 0) - (r < 0)); // 1 = increase energy, -1 = reduce energy
-#ifdef VERBOSE
-        {
-
-            cout << "Starting recursive feedback for output node " << (i - d_in + 1) << " which " << (output_did_fire ? "did" : "did not") << " fire, giving sign " << sign << endl;
-        }
-#endif
-        feedback_recursively(i, r, sign, t, t, !output_did_fire);
-    }
+    // Apply the feedback, updating edges and trackers, without normalizing edges
+    feedback_frontier(r);
 
 #ifdef VERBOSE
     {
@@ -688,12 +583,13 @@ void Brain::initialize(int connection_depth)
     }
 }
 
+// Called after update, checks which output nodes fired at the last time point
 vector<bool> Brain::get_output() const
 {
     vector<bool> res(d_out);
     for (node_index i = d_in; i < d_in + d_out; i++)
     {
-        res[i - d_in] = nodes[i].fired_at_set().contains(t);
+        res[i - d_in] = nodes[i].fired_at.back() == t;
     }
     return res;
 }
@@ -728,7 +624,7 @@ Brain::Brain(int _n, int _connectivity, int _d_in, int _d_out, int track_l)
     connectivity = _connectivity;
     t = 0;
     chill_factor_base = pow(10, random_float(-3, -1));
-    gamma = random_float(0.1, 0.9);
+    temporal_discount_factor = random_float(0.1, 0.9);
     p_change_type = pow(10, random_float(-2, 0));
     nodes.resize(n);
     edges.resize(n);

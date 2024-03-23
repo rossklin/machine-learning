@@ -8,3 +8,5 @@ float random_float(float a, float b);
 
 typedef int time_point;
 typedef int node_index;
+
+typedef std::pair<time_point, time_point> time_range;

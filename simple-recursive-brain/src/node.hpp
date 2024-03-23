@@ -18,4 +18,6 @@ struct Node
     Node();
 
     std::set<time_point> fired_at_set() const;
+    time_point last_fired_before(time_point t) const;
+    bool did_fire_at(time_point t) const;
 };
