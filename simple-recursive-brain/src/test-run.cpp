@@ -11,181 +11,183 @@
 
 using namespace std;
 
-// d_in = 30, d_out = 2
-float test_tunnel(Brain &b)
+enum tunnel_choice
 {
-    const int viewport = 5, height = 5;
-    static vector<int> ceiling(viewport, height), floor(viewport, 0), food(viewport, -1);
-    static int pos = 2;
+    UP,
+    DOWN,
+    LEVEL,
+    INVALID
+};
+
+struct GameState
+{
+    const static int viewport = 5, height = 5;
+    vector<int> ceiling;
+    vector<int> floor;
+    vector<int> food;
+    int pos; // Bot's position
+
+    GameState() : ceiling(viewport, height), floor(viewport, 0), food(viewport, -1), pos(2) {}
+
+    static int get_input_dim()
+    {
+        return (2 * viewport + 1) * height;
+    }
+
+    // True if a collision was fixed
+    bool fix_collision()
+    {
+        if (pos >= ceiling[0])
+        {
+            // Collision
+            pos = ceiling[0] - 1;
+            return true;
+        }
+        else if (pos <= floor[0])
+        {
+            // Collision
+            pos = floor[0] + 1;
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    float apply_choice(tunnel_choice choice)
+    {
+        if (choice == INVALID)
+        {
+            return -1;
+        }
+
+        if (choice == UP)
+        {
+            pos++;
+        }
+        else if (choice == DOWN)
+        {
+            pos--;
+        }
+
+        if (fix_collision())
+        {
+            return -1;
+        }
+        else if (food[0] == pos)
+        {
+            return 1;
+        }
+        else
+        {
+            return 0.5;
+        }
+    }
+
+    // Update state and check collision, return true if collision was fixed
+    bool shift()
+    {
+        copy(ceiling.begin() + 1, ceiling.end(), ceiling.begin());
+        copy(floor.begin() + 1, floor.end(), floor.begin());
+        copy(food.begin() + 1, food.end(), food.begin());
+
+        // Ensure the tunnel is always traversable
+        ceiling.back() = random_int(floor.back() + 2, height - 1);
+        floor.back() = random_int(0, ceiling.back() - 2);
+
+        // Add food in a traversable space
+        food.back() = random_int(floor.back() + 1, ceiling.back() - 1);
+
+        return fix_collision();
+    }
+};
+
+const int GameState::viewport;
+const int GameState::height;
+
+tunnel_choice get_tunnel_choice(bool in1, bool in2)
+{
+    if (in1 && in2)
+    {
+        return INVALID;
+    }
+    else if (in1)
+    {
+        return UP;
+    }
+    else if (in2)
+    {
+        return DOWN;
+    }
+    else
+    {
+        return LEVEL;
+    }
+}
+
+// d_in = 30, d_out = 2
+float test_tunnel(Brain &b, GameState &state)
+{
 
     // Add floor and ceiling to input
-    vector<bool> input((2 * viewport + 1) * height, false);
-    for (int col = 0; col < viewport; col++)
+    vector<bool> input((2 * state.viewport + 1) * state.height, false);
+    for (int col = 0; col < state.viewport; col++)
     {
-        for (int row = 0; row < height; row++)
+        for (int row = 0; row < state.height; row++)
         {
-            if (row >= ceiling[col] || row < floor[col])
+            if (row >= state.ceiling[col] || row < state.floor[col])
             {
-                input[col * height + row] = true;
+                input[col * state.height + row] = true;
             }
         }
     }
 
     // Add food to input
-    for (int col = 0; col < viewport; col++)
+    for (int col = 0; col < state.viewport; col++)
     {
-        if (food[col] >= 0)
+        if (state.food[col] >= 0)
         {
-            input[viewport * height + col * height + food[col]] = true;
+            input[state.viewport * state.height + col * state.height + state.food[col]] = true;
         }
     }
 
     // Add self to input
-    input[2 * viewport * height + pos] = true;
+    input[2 * state.viewport * state.height + state.pos] = true;
 
     // Run network
-    b.set_input(input);
-    b.update();
-    vector<bool> output = b.get_output();
+    vector<float> output(2);
+#ifndef NODEBUG
+    cout << "Thinking";
+#endif
 
-    // Analyze result
-    bool valid_output = true;
-    if (output[0] && output[1])
+    for (int i = 0; i < 10; i++)
     {
-        valid_output = false;
+        b.set_input(input);
+        b.update();
+        vector<bool> buf = b.get_output();
+        output[0] += buf[0];
+        output[1] += buf[1];
+#ifndef NODEBUG
+        cout << ".";
+#endif
     }
-    else if (output[0] && pos > 0)
-    {
-        pos--;
-    }
-    else if (output[1] && pos < height - 1)
-    {
-        pos++;
-    }
-    else if (output[0] || output[1])
-    {
-        valid_output = false;
-    }
-    bool ok_step = pos >= floor[0] && pos < ceiling[0];
-    bool got_food = pos == food[0];
-    float feedback = -1;
-    if (ok_step && valid_output)
-    {
-        if (got_food)
-        {
-            feedback = 1;
-        }
-        else
-        {
-            feedback = 0.5;
-        }
-    }
+
+#ifndef NODEBUG
+    cout << endl;
+#endif
+
+    tunnel_choice choice = get_tunnel_choice(output[0] > 3, output[1] > 3);
 
     // Update tunnel state
-    static vector<int> new_ceiling(viewport, 5), new_floor(viewport, 0), new_food(viewport, -1);
-    copy(ceiling.begin() + 1, ceiling.end(), new_ceiling.begin());
-    copy(floor.begin() + 1, floor.end(), new_floor.begin());
-    copy(food.begin() + 1, food.end(), new_food.begin());
-
-    // Find ceiling min that is not impossible
-    int ceil_min = 0;
-    for (int i = 0; i < viewport; i++)
+    bool collided = state.shift();
+    float feedback = state.apply_choice(choice);
+    if (collided)
     {
-        // TODO
-        ceil_min = max(ceil_min, floor[i] - (height - i + ...));
+        feedback = -1;
     }
-
-    // TODO same for floor
-
-    // new_ceiling.back() = random_int(floor.back() + 1, height);
-    // new_floor.back() = random_int(0, ceiling.back() - 1);
-
-    // TODO add food
-
-    // TODO swap state
 
     return feedback;
-}
-
-// Test problem: step on 3x3 grid without hitting walls
-float test_step(Brain &b, const int d_in, const int d_out)
-{
-    static int row = 1, col = 1;
-
-    vector<bool> input(d_in, false);
-    input[row] = true;
-    input[3 + col] = true;
-    b.set_input(input);
-    b.update();
-
-    // Train at predicting input
-    vector<bool> output = b.get_output();
-    int count = 0;
-    int idx = -1;
-    for (int j = 0; j < d_out; j++)
-    {
-        if (output[j])
-        {
-            count++;
-            idx = j;
-        }
-    }
-
-    float r = -1;
-
-    if (count == 1)
-    {
-        r = -0.5;
-        switch (idx)
-        {
-        case 0:
-            if (row > 0)
-            {
-                row--;
-                r = 1;
-            }
-            else
-            {
-                r = -1;
-            }
-            break;
-        case 1:
-            if (col < 2)
-            {
-                col++;
-                r = 1;
-            }
-            else
-            {
-                r = -1;
-            }
-            break;
-        case 2:
-            if (row < 2)
-            {
-                row++;
-                r = 1;
-            }
-            else
-            {
-                r = -1;
-            }
-            break;
-        case 3:
-            if (col > 0)
-            {
-                col--;
-                r = 1;
-            }
-            else
-            {
-                r = -1;
-            }
-            break;
-        default:
-            throw logic_error("Invalid output index!");
-        }
-    }
 }
 
 /* TODO
@@ -195,15 +197,30 @@ We also need a way to modify energy uptake in feedback
 May also look into a method for crossing / GA
 */
 
+// Usage: SRB n epochs threads
 int main(int argc, char **argv)
 {
-    int d_in = 6, d_out = 4, con_depth = 4;
+    int d_in = GameState::get_input_dim(); // 55
+    int d_out = 2, con_depth = 4;
     int n = atoi(argv[1]), epochs = atoi(argv[2]);
     int n_threads = argc == 4 ? atoi(argv[3]) : 6;
     int test_id_seed = 0;
     omp_set_num_threads(n_threads);
 
+    if (n < 60)
+    {
+        cout << "This version requires at least 60 nodes!" << endl;
+        exit(-1);
+    }
+
+#ifndef NODEBUG
+    cout << "Starting!" << endl;
+#endif
+
+#ifdef NODEBUG
     cout << "thread_id, test_id, iteration, test, rolling_rate" << endl;
+#endif
+
 #pragma omp parallel
     while (true)
     {
@@ -213,30 +230,35 @@ int main(int argc, char **argv)
             test_id = test_id_seed++;
         }
 
-        Brain b(n, 3, d_in, d_out, 40);
+        Brain b(n, 3, d_in, d_out, 40); // n, connectivity, d_in, d_out, track_l
         b.initialize(con_depth);
         float hit_rate = 0.125;
         int row = 1, col = 1;
+        GameState state;
 
         for (int i = 1; i < epochs; i++)
         {
-            const float r = test_step(b, d_in, d_out);
+            const float r = test_tunnel(b, state);
             b.feedback(r);
 
-            hit_rate = 0.999 * hit_rate + 0.001 * (r == 1);
+            hit_rate = 0.999 * hit_rate + 0.001 * r;
 #pragma omp critical
             {
+#ifdef NODEBUG
                 cout << omp_get_thread_num() << ", " << test_id << ", " << i << ", " << r << ", " << hit_rate << endl;
+#else
+                cout << "Row: " << omp_get_thread_num() << ", " << test_id << ", " << i << ", " << r << ", " << hit_rate << endl;
+#endif
             }
 
-            // Sigmoid start at 0.143, hit ~0.255 at 1000, 0.356 at 2000, 0.63 at 10000
-            float min_level = 1 / (1 + exp(-i / (float)2200)) - 0.357;
+            // // Sigmoid start at 0.143, hit ~0.255 at 1000, 0.356 at 2000, 0.63 at 10000
+            // float min_level = 1 / (1 + exp(-i / (float)2200)) - 0.357;
 
-            if ((i % 200 == 0) && hit_rate < min_level)
-            {
-                // Not performing well enough, start over
-                break;
-            }
+            // if ((i % 200 == 0) && hit_rate < min_level)
+            // {
+            //     // Not performing well enough, start over
+            //     break;
+            // }
         }
     }
 
