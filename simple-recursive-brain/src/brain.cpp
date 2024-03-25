@@ -589,7 +589,7 @@ vector<bool> Brain::get_output() const
     vector<bool> res(d_out);
     for (node_index i = d_in; i < d_in + d_out; i++)
     {
-        res[i - d_in] = nodes[i].fired_at.back() == t;
+        res[i - d_in] = !nodes[i].fired_at.empty() && nodes[i].fired_at.back() == t;
     }
     return res;
 }
