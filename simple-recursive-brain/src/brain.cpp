@@ -437,7 +437,7 @@ void Brain::feedback_frontier(float r)
                 frontier[i][offset_time] = gamma * r;
             }
         }
-    };
+    }
 }
 
 // Give feedback
@@ -446,7 +446,7 @@ void Brain::feedback(float r)
 {
     if (r == 0)
     {
-#ifdef VERBOSE
+#ifndef NODEBUG
         {
 
             cout << "Feedback 0, nothing to do!" << endl;
@@ -455,7 +455,7 @@ void Brain::feedback(float r)
         return;
     }
 
-#ifdef VERBOSE
+#ifndef NODEBUG
     {
         cout << "Giving feedback " << r << " at time " << t << endl;
     }
@@ -464,7 +464,7 @@ void Brain::feedback(float r)
     // Apply the feedback, updating edges and trackers, without normalizing edges
     feedback_frontier(r);
 
-#ifdef VERBOSE
+#ifndef NODEBUG
     {
 
         cout << "Starting edge cleanup" << endl;
@@ -488,7 +488,7 @@ void Brain::feedback(float r)
                 edges[i][x.first].is_inhibitor = !edges[i][x.first].is_inhibitor;
                 edges[i][x.first].width *= -1;
 
-#ifdef VERBOSE
+#ifndef NODEBUG
                 {
 
                     cout << "Switch type due to negative width for edge " << i << " -> " << x.first << endl;
@@ -508,7 +508,7 @@ void Brain::feedback(float r)
         if (random_float(0, 1) < p_add)
         {
             add_edge(i, random_edge_target(i));
-#ifdef VERBOSE
+#ifndef NODEBUG
             {
 
                 cout << "Added edge from " << i << endl;
@@ -525,12 +525,12 @@ void Brain::feedback(float r)
             nodes[i].energy_uptake += random_float(0, 1) * track;
             nodes[i].firepower += random_float(0, 1) * track;
 
-#ifdef VERBOSE
+#ifndef NODEBUG
             cout << "Modification for node " << i << " based on tracker " << track << endl;
 #endif
         }
 
-#ifdef VERBOSE
+#ifndef NODEBUG
         cout << "Mod tracker for " << i << " = " << track << endl;
 #endif
 
@@ -567,7 +567,7 @@ void Brain::initialize(int connection_depth)
             failed = true;
         }
 
-#ifdef VERBOSE
+#ifndef NODEBUG
         {
 
             cout << "Create edges: attempt " << attempts << endl;
